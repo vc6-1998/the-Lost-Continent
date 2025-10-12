@@ -1,0 +1,73 @@
+/* 特效容器的基础样式 */
+.effect-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 998; /* 在游戏内容之上，在UI之下 */
+    pointer-events: none; /* 关键！让鼠标可以穿透此层，点击到下面的游戏 */
+    overflow: hidden; /* 防止特效溢出屏幕 */
+}
+
+/* --- 特效定义 --- */
+
+/* 1. 头痛特效 (headache / headache_intense) */
+.effect-overlay.headache::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-image: url('../assets/img/noise.png'); /* 一个噪点纹理图 */
+    animation: headache-flicker 0.3s steps(2, end) 3; /* 闪烁3次 */
+}
+.effect-overlay.headache-intense {
+    animation: screen-shake 0.4s ease-in-out;
+}
+@keyframes headache-flicker {
+    0% { opacity: 0; } 50% { opacity: 0.2; } 100% { opacity: 0; }
+}
+@keyframes screen-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+}
+
+/* 2. 天平闪现 (balance_flash) */
+.effect-overlay.balance-flash::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 400px; height: 400px;
+    background-image: url('path/to/balance-symbol.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    transform: translate(-50%, -50%);
+    animation: flash-fade-in-out 0.8s ease-out;
+}
+@keyframes flash-fade-in-out {
+    0%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+    50% { opacity: 0.8; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* 3. 饱和度降低 (desaturate) */
+.effect-overlay.desaturate {
+    /* 这个特效需要作用于整个游戏窗口，而不是叠加层 */
+    /* 我们可以在 body 上添加一个类 */
+}
+body.desaturate-active #game-container { /* 假设你的游戏都在一个容器里 */
+    transition: filter 1.5s ease;
+    filter: saturate(0.2);
+}
+
+/* 4. 神圣光芒 (holy_light) */
+.effect-overlay.holy-light::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: 0; width: 100%; height: 200%;
+    background: radial-gradient(circle at 50% 50%, rgba(255,255,220,0.8) 0%, rgba(255,255,255,0) 70%);
+    animation: light-beam-descend 2.5s ease-out;
+}
+@keyframes light-beam-descend {
+    from { opacity: 0; transform: translateY(-50%); }
+    to { opacity: 1; transform: translateY(0); }
+}

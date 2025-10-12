@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星辰碎片记忆匹配</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Cinzel', 'Times New Roman', serif;
+            background: linear-gradient(135deg, #0a0a2a, #1a1a4a, #2c2c5c);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #e0d3b8;
+        }
+        
+        .container {
+            background: rgba(10, 10, 30, 0.85);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 0 25px rgba(123, 97, 255, 0.4), 
+                        inset 0 0 50px rgba(105, 65, 225, 0.2);
+            max-width: 1000px;
+            width: 100%;
+            text-align: center;
+            border: 1px solid #7b61ff;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .container::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, #7b61ff, #ff6b6b, #7b61ff);
+            border-radius: 5px 5px 0 0;
+        }
+        
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            text-shadow: 0 0 15px rgba(123, 97, 255, 0.8);
+            color: #e0d3b8;
+            letter-spacing: 2px;
+            font-weight: 700;
+        }
+        
+        .instructions {
+            font-size: 1.2rem;
+            margin-bottom: 25px;
+            color: #c9b9a8;
+            line-height: 1.5;
+            font-style: italic;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            background: rgba(60, 40, 120, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #5a4ab3;
+        }
+        
+        .stats span {
+            font-weight: bold;
+            color: #ffd166;
+        }
+        
+        .timer {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #ffd166;
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(255, 209, 102, 0.5);
+        }
+        
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 8px;
+            margin: 0 auto 25px;
+            max-width: 900px;
+        }
+        
+        .card {
+            height: 90px;
+            background: linear-gradient(135deg, #3a2c75, #5a4ab3);
+            border-radius: 8px;
+            cursor: pointer;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.5s;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            border: 1px solid #7b61ff;
+        }
+        
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+        
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .card-front {
+            background: linear-gradient(135deg, #4a3b8a, #6a5acd);
+            transform: rotateY(180deg);
+            font-size: 2.2rem;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+        }
+        
+        .card-back {
+            background: url('../assets/img/star.jpg') center/cover;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        button {
+            padding: 12px 25px;
+            font-size: 1.1rem;
+            background: linear-gradient(to bottom, #7b61ff, #5a4ab3);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: #e0d3b8;
+            font-weight: bold;
+            box-shadow: 0 0 15px rgba(123, 97, 255, 0.4);
+            transition: all 0.3s;
+            font-family: 'Cinzel', 'Times New Roman', serif;
+            letter-spacing: 1px;
+            border: 1px solid #9d8aff;
+        }
+        
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0 20px rgba(123, 97, 255, 0.7);
+            background: linear-gradient(to bottom, #8b71ff, #6a5acd);
+        }
+        
+        button:active {
+            transform: translateY(1px);
+        }
+
+        .message {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 99999;
+            pointer-events: auto;
+        }
+        
+        .message-content {
+            background: linear-gradient(135deg, #2a2a5a, #4a3b8a);
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 0 40px rgba(123, 97, 255, 0.6);
+            animation: pulse 3s infinite;
+            border: 1px solid #7b61ff;
+            position: relative;
+        }
+        
+        .message-content::before {
+            content: "✦";
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2rem;
+            color: #ffd166;
+            text-shadow: 0 0 15px rgba(255, 209, 102, 0.8);
+            background: #2a2a5a;
+            padding: 0 15px;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 30px rgba(123, 97, 255, 0.6); }
+            50% { box-shadow: 0 0 50px rgba(123, 97, 255, 0.9); }
+            100% { box-shadow: 0 0 30px rgba(123, 97, 255, 0.6); }
+        }
+        
+        .message-content h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: #ffd166;
+            text-shadow: 0 0 10px rgba(255, 209, 102, 0.5);
+        }
+        
+        .message-content p {
+            font-size: 1.4rem;
+            margin-bottom: 25px;
+            color: #e0d3b8;
+        }
+        
+        .card.matched .card-front {
+            background: linear-gradient(135deg, #4caf50, #2e7d32);
+            animation: matched 0.5s;
+            box-shadow: 0 0 15px rgba(76, 175, 80, 0.6);
+        }
+        
+        @keyframes matched {
+            0% { transform: rotateY(180deg) scale(1); }
+            50% { transform: rotateY(180deg) scale(1.1); }
+            100% { transform: rotateY(180deg) scale(1); }
+        }
+        
+        @media (max-width: 950px) {
+            .game-board {
+                grid-template-columns: repeat(8, 1fr);
+                gap: 6px;
+            }
+            
+            .card {
+                height: 70px;
+            }
+            
+            .card-front {
+                font-size: 1.8rem;
+            }
+            
+            h1 {
+                font-size: 2.2rem;
+            }
+        }
+        
+        @media (max-width: 750px) {
+            .game-board {
+                grid-template-columns: repeat(6, 1fr);
+            }
+            
+            .card {
+                height: 80px;
+            }
+        }
+        
+        @media (max-width: 550px) {
+            .game-board {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            
+            .card {
+                height: 90px;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+            }
+            
+            .instructions {
+                font-size: 1rem;
+            }
+            
+            .stats {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    
+
+    <div class="container">
+        <h1>星辰碎片记忆匹配</h1>
+        <p class="instructions">寻找匹配的星辰碎片，解开明镜域神秘的面纱，恢复五域的平衡！</p>
+
+        <div class="timer" id="timer">剩余时间: 240秒</div>
+
+        <div class="stats">
+            <div>已收集: <span id="collected">0</span>/24 对</div>
+        </div>
+
+        <div class="game-board" id="game-board"></div>
+
+        <div class="controls">
+            <button id="restart">重新开始</button>
+        </div>
+    </div>
+
+    <div class="message" id="win-message">
+        <div class="message-content">
+            <h2>宇宙平衡已恢复！</h2>
+            <p>你成功收集了所有的星辰碎片！</p>
+            <button id="play-again">再玩一次</button>
+        </div>
+    </div>
+
+    <div class="message" id="lose-message">
+        <div class="message-content">
+            <h2>时间流逝！</h2>
+            <p>很遗憾，星辰之力已经消散...</p>
+            <button id="try-again">再试一次</button>
+        </div>
+    </div>
+
+    <script>
+        // 解析父页传来的参数（URL ?embed=1&allowSkip=1&parentOrigin=...）
+        (function () {
+            const P = new URLSearchParams(location.search);
+            const EMBED = P.get('embed') === '1';
+            const AUTOSTART = P.get('autostart') === '1';
+            const ALLOW_SKIP = P.get('allowSkip') === '1';
+            let PARENT_ORI = '*';
+            try {
+                const o = P.get('parentOrigin');
+                if (o && /^https?:\/\//i.test(o)) PARENT_ORI = o;
+            } catch (e) { }
+            // 全局可用
+            window.__MG = { EMBED, AUTOSTART, ALLOW_SKIP, PARENT_ORI };
+        })();
+        document.addEventListener('DOMContentLoaded', () => {
+            const gameBoard = document.getElementById('game-board');
+            const collectedSpan = document.getElementById('collected');
+            const timerSpan = document.getElementById('timer');
+            const restartBtn = document.getElementById('restart');
+            const playAgainBtn = document.getElementById('play-again');
+            const tryAgainBtn = document.getElementById('try-again');
+            const winMessage = document.getElementById('win-message');
+            const loseMessage = document.getElementById('lose-message');
+            // 嵌入模式下，不让玩家点“再玩一次/再试一次”
+            if (window.__MG?.EMBED) {
+                if (playAgainBtn) playAgainBtn.style.display = 'none';
+                if (tryAgainBtn) tryAgainBtn.style.display = 'none';
+            }
+
+            let collected = 0;
+            let canFlip = true;
+            let firstCard = null;
+            let secondCard = null;
+            let lockBoard = false;
+            let timer;
+            let timeLeft = 240;
+
+            // 碎片类型（12种，每种4个）
+            const shardTypes = ['💎', '☸️', '⚛️', '⭐', '🌙', '🔺', '🔻', '🌀', '♆', '☯', '🜁', '🜃'];
+
+            // 初始化游戏
+            function initGame() {
+                if (restartBtn) restartBtn.textContent = '重新开始';
+                clearInterval(timer);
+                timeLeft = 240;
+                timerSpan.textContent = `剩余时间: ${timeLeft}秒`;
+                timerSpan.style.color = '#ffd166';
+
+                gameBoard.innerHTML = '';
+                collected = 0;
+                collectedSpan.textContent = collected;
+                canFlip = true;
+
+                // 创建卡片数组（12种碎片，每种4个）
+                let cards = [];
+                shardTypes.forEach(type => {
+                    for (let i = 0; i < 4; i++) {
+                        cards.push(type);
+                    }
+                });
+
+                // 随机排序卡片
+                cards = cards.sort(() => Math.random() - 0.5);
+
+                // 创建卡片元素
+                cards.forEach((shard, index) => {
+                    const card = document.createElement('div');
+                    card.classList.add('card');
+                    card.dataset.shard = shard;
+
+                    const cardFront = document.createElement('div');
+                    cardFront.classList.add('card-front');
+                    cardFront.textContent = shard;
+
+                    const cardBack = document.createElement('div');
+                    cardBack.classList.add('card-back');
+
+                    // 计算背景位置（将图片分割成6x8网格）
+                    const row = Math.floor(index / 8);
+                    const col = index % 8;
+
+                    // 设置背景位置
+                    cardBack.style.backgroundPosition = `${-col * 100}% ${-row * 100}%`;
+                    cardBack.style.backgroundSize = '800% 600%';
+
+                    card.appendChild(cardFront);
+                    card.appendChild(cardBack);
+
+                    card.addEventListener('click', flipCard);
+                    gameBoard.appendChild(card);
+                });
+
+                // 启动计时器
+                startTimer();
+            }
+
+            // 启动计时器
+            function startTimer() {
+                timer = setInterval(() => {
+                    timeLeft--;
+                    timerSpan.textContent = `剩余时间: ${timeLeft}秒`;
+
+                    // 时间少于30秒时改变颜色
+                    if (timeLeft <= 30) {
+                        timerSpan.style.color = '#ff6b6b';
+                    }
+
+                    // 时间到
+                    if (timeLeft <= 0) {
+                        clearInterval(timer);
+                        loseGame();
+                    }
+                }, 1000);
+            }
+
+            // 翻转卡片
+            function flipCard() {
+                if (lockBoard) return;
+                if (this === firstCard) return;
+                if (!canFlip) return;
+
+                this.classList.add('flipped');
+
+                if (!firstCard) {
+                    // 第一次点击
+                    firstCard = this;
+                    return;
+                }
+
+                // 第二次点击
+                secondCard = this;
+                checkMatch();
+            }
+
+            // 检查匹配
+            function checkMatch() {
+                lockBoard = true;
+
+                const isMatch = firstCard.dataset.shard === secondCard.dataset.shard;
+
+                if (isMatch) {
+                    disableCards();
+                    collected++;
+                    collectedSpan.textContent = collected;
+
+                    if (collected === 24) {
+                        clearInterval(timer);
+                        setTimeout(() => {
+                            winGame();
+                        }, 1000);
+                    }
+                } else {
+                    unflipCards();
+                }
+            }
+
+            // 禁用已匹配的卡片
+            function disableCards() {
+                firstCard.classList.add('matched');
+                secondCard.classList.add('matched');
+
+                firstCard.removeEventListener('click', flipCard);
+                secondCard.removeEventListener('click', flipCard);
+
+                resetBoard();
+            }
+
+            // 翻回不匹配的卡片
+            function unflipCards() {
+                setTimeout(() => {
+                    firstCard.classList.remove('flipped');
+                    secondCard.classList.remove('flipped');
+                    resetBoard();
+                }, 1000);
+            }
+
+            // 重置棋盘状态
+            function resetBoard() {
+                [firstCard, secondCard, lockBoard] = [null, null, false];
+            }
+
+            function winGame() {
+                winMessage.style.display = 'flex';      // 先出提示
+                __mgNotifyParent('success');            // 1.5s 后通知父页关闭
+            }
+
+            function loseGame() {
+                loseMessage.style.display = 'flex';
+                __mgNotifyParent('failure');
+            }
+
+            // 事件监听
+            restartBtn.addEventListener('click', initGame);
+            playAgainBtn.addEventListener('click', () => {
+                winMessage.style.display = 'none';
+                initGame();
+            });
+            tryAgainBtn.addEventListener('click', () => {
+                loseMessage.style.display = 'none';
+                initGame();
+            });
+
+            // 跳过按钮（父页会按 success 处理）
+            (function createSkip() {
+                if (!window.__MG?.ALLOW_SKIP) return;
+                if (document.getElementById('mg-skip')) return;
+                const btn = document.createElement('button');
+                btn.id = 'mg-skip';
+                btn.textContent = '跳过（直接通过）';
+                Object.assign(btn.style, {
+                    position: 'fixed', right: '12px', top: '12px', zIndex: 9999,
+                    padding: '8px 12px', fontSize: '14px', cursor: 'pointer'
+                });
+                btn.addEventListener('click', () => {
+                    if (typeof winGame === 'function') {
+                        winGame();                 // winGame 里已经会显示 #win-message 并延时通知父页
+                    } else {
+                        // 兜底：万一没有 winGame，手动显示提示层 + 回传
+                        const layer = document.getElementById('win-message')
+                            || document.querySelector('.win-message, .message.win, .message--win');
+                        if (layer) layer.style.display = 'flex';
+                        __mgNotifyParent('success');
+                    }
+                });
+
+                document.body.appendChild(btn);
+            })();
+
+            function __mgNotifyParent(result) {
+                const DELAY = 1500; // 让玩家看提示
+                if (window.parent && window.parent !== window) {
+                    setTimeout(() => {
+                        try {
+                            window.parent.postMessage(
+                                { type: 'mg:done', id: 'memory', result: (result === 'success' ? 'success' : 'failure') },
+                                (window.__MG && window.__MG.PARENT_ORI) || '*'
+                            );
+                        } catch (e) { }
+                    }, DELAY);
+                }
+            }
+
+
+            // 嵌入协议：仅当 autostart=1 时自动开局，否则保留介绍页
+            if (window.__MG?.AUTOSTART) {
+                initGame();
+            } else {
+                if (restartBtn) restartBtn.textContent = '开始游戏';
+            }
+
+
+        });
+    </script>
+</body>
+</html>

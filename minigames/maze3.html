@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>迷宫挑战</title>
+    <style>
+        /* 基础样式 */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: sans-serif;
+            color: white;
+        }
+
+        /* ---------------------------------- */
+        /* --- 您提供的画布和窗口样式 --- */
+        /* ---------------------------------- */
+        .window {
+            width: 800px;
+            height: 600px;
+            position: absolute;
+            background-color: black;
+            top: 50%;
+            left: 50%;
+            /* 关键：路径需要相对于这个HTML文件。假设您的img文件夹在上一级目录 */
+            border-image: url(../assets/img/edge.png) 27;
+            transform: translate(-50%, -50%);
+            border: 15px solid;
+            border-radius: 10px;
+            background-repeat: no-repeat;
+            background-size: 800px 600px;
+            overflow: hidden;
+        }
+
+        canvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            z-index: 100;
+            transform: translate(-50%,-50%);
+        }
+
+        /* ---------------------------------- */
+        /* --- 新增的计时器和跳过按钮样式 --- */
+        /* ---------------------------------- */
+        #timer-display {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #FFD700;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 10px 25px;
+            border-radius: 10px;
+            border: 2px solid #FFD700;
+            text-shadow: 0 0 10px #FFD700;
+        }
+
+        #skip-button {
+            position: fixed;
+            top: 25px;
+            right: 25px;
+            z-index: 200;
+
+            /* --- 采用您提供的 dialogue-box 样式 --- */
+            cursor: pointer;
+            background-color: rgba(245, 238, 218, 0.85);
+            color: #4b3a2a;
+            border: 1px solid #c8bda8;
+            border-radius: 2px 8px 2px 8px;
+            padding: 12px 22px;
+            text-align: center;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3), inset 0 0 15px rgba(160, 140, 110, 0.4);
+            font-size: 20px;
+            letter-spacing: 1px;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        #skip-button:hover {
+            transform: scale(1.05);
+            box-shadow: 4px 4px 8px rgba(0,0,0,0.4), inset 0 0 15px rgba(160, 140, 110, 0.3);
+        }
+
+        #feedback-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.85);
+            z-index: 300;
+            display: none; /* 默认隐藏 */
+            justify-content: center;
+            align-items: center;
+            font-size: 3rem;
+            font-weight: bold;
+            text-shadow: 0 0 15px white;
+            color: white;
+            opacity: 0; /* 为平滑过渡做准备 */
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        /* 当遮罩层需要显示时，我们给它加上这个类 */
+        #feedback-overlay.visible {
+            display: flex;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 新增的UI元素 -->
+    <div id="timer-display">60</div>
+    <button id="skip-button">跳过</button>
+
+    <!-- 您的画布结构 -->
+    <div class="window">
+        <div><canvas id="gameCanvas" width="770" height="570"></canvas></div>
+    </div>
+
+    <!-- 游戏结束反馈遮罩 (默认隐藏) -->
+    <div id="feedback-overlay" hidden></div>
+
+    <script>
+        // =======================================================================
+        //   1. 从您的项目文件中提取的核心代码 (MapData, MapManager)
+        // =======================================================================
+
+        class MapData {
+            constructor(data) {
+                this.name = data.name; this.img = data.img; this.grid = data.free;
+                this.rows = this.grid.length; this.cols = this.grid[0] ? this.grid[0].length : 0;
+                this.enterPosition = data.enter.pos;
+                this.exitPositions = new Set(data.exit.pos.map(p => `${p[0]},${p[1]}`));
+                this.interactions = []; this.interactionMap = new Map();
+            }
+            isExitAt(col, row) { return this.exitPositions.has(`${col},${row}`); }
+        }
+
+        class MapManager {
+            constructor(config) {
+                this.canvas = config.canvas; this.ctx = this.canvas.getContext('2d');
+                this.mapData = config.mapData; this.isActive = false; this.isPlayerInputLocked = false;
+                this.keyState = {}; this.animationFrameId = null; this.onExitCallback = null;
+                this.mapImage = new Image(); this.TILE_SIZE = 32; this.mapWidth = 0; this.mapHeight = 0;
+                this.mapGrid = this.mapData.grid;
+                this.player = { x: 0, y: 0, width: 32, height: 32 * 1.8, speed: 200, direction: 'down', alpha: 1.0 };
+                this.playerImages = { up: new Image(), down: new Image(), left: new Image(), right: new Image() };
+                this.view = { x: 0, y: 0, width: this.canvas.width, height: this.canvas.height };
+                this.fadeEffect = { alpha: 0, speed: 0.03, isFading: false }; this.lastTimestamp = 0;
+            }
+            async start() {
+                if (this.isActive) { return new Promise(resolve => { this.onExitCallback = resolve; }); }
+                this._play();
+                return new Promise(resolve => { this.onExitCallback = resolve; });
+            }
+            _play() {
+                this.isActive = true; this._addEventListeners(); this._gameLoop(); this.fadeIn();
+            }
+            _gameLoop(timestamp) {
+                if (!this.isActive) { this.lastTimestamp = 0; return; }
+                if (!this.lastTimestamp) this.lastTimestamp = timestamp;
+                const deltaTime = (timestamp - this.lastTimestamp) / 1000;
+                this.lastTimestamp = timestamp;
+                this._update(deltaTime); this._render();
+                this.animationFrameId = requestAnimationFrame((ts) => this._gameLoop(ts));
+            }
+            _update(deltaTime) {
+                this._checkAutoExit();
+                if (this.isPlayerInputLocked) return;
+                this._updatePlayerMovement(deltaTime); this._updateViewFollowPlayer();
+            }
+            async _checkAutoExit() {
+                const playerCol = Math.floor(this.player.x / this.TILE_SIZE);
+                const playerRow = Math.floor(this.player.y / this.TILE_SIZE);
+                if (this.mapData.isExitAt(playerCol, playerRow)) {
+                    if (this.onExitCallback) this.onExitCallback({ action: 'exit' });
+                }
+            }
+            async _init() {
+                // 确保玩家图片路径正确
+                const assetPath = '../assets/img/';
+                this.playerImages.up.src = assetPath + 'player_up.png';
+                this.playerImages.down.src = assetPath + 'player_down.png';
+                this.playerImages.left.src = assetPath + 'player_left.png';
+                this.playerImages.right.src = assetPath + 'player_right.png';
+                await this._loadMapImage(this.mapData.img);
+                this.TILE_SIZE = this.mapWidth / this.mapData.cols;
+                this.player.width = this.TILE_SIZE * 0.8;
+                this.player.height = this.TILE_SIZE * 0.8 * 1.8;
+                const startPos = this.mapData.enterPosition;
+                this.player.x = (startPos[0] + 0.5) * this.TILE_SIZE;
+                this.player.y = (startPos[1] + 0.5) * this.TILE_SIZE;
+            }
+            _render() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.drawImage(this.mapImage, this.view.x, this.view.y, this.view.width, this.view.height, 0, 0, this.view.width, this.view.height);
+                const drawX = Math.round(this.player.x - this.view.x - this.player.width / 2);
+                const drawY = Math.round(this.player.y - this.view.y - this.player.height);
+                const playerImg = this.playerImages[this.player.direction];
+                if (playerImg && playerImg.complete) {
+                    this.ctx.globalAlpha = this.player.alpha;
+                    this.ctx.drawImage(playerImg, drawX, drawY, this.player.width, this.player.height);
+                    this.ctx.globalAlpha = 1.0;
+                }
+                if (this.fadeEffect.alpha > 0) {
+                    this.ctx.globalAlpha = this.fadeEffect.alpha;
+                    this.ctx.fillStyle = 'black';
+                    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                    this.ctx.globalAlpha = 1;
+                }
+            }
+            _updatePlayerMovement(deltaTime) {
+                const moveDistance = this.player.speed * deltaTime;
+                const canMoveTo = (newX, newY) => {
+                    const collideWidth = this.player.width * 0.9;
+                    const collideHeight = this.player.width * 0.5;
+                    const collideLeft = newX - collideWidth / 2;
+                    const collideTop = newY - collideHeight / 2;
+                    const collideRight = newX + collideWidth / 2;
+                    const collideBottom = newY + collideHeight / 2;
+                    const points = [
+                        { x: collideLeft, y: collideTop }, { x: collideRight, y: collideTop },
+                        { x: collideLeft, y: collideBottom }, { x: collideRight, y: collideBottom }
+                    ];
+                    for (const p of points) {
+                        const col = Math.floor(p.x / this.TILE_SIZE);
+                        const row = Math.floor(p.y / this.TILE_SIZE);
+                        if(this.mapGrid[row]?.[col] !== 1) return false;
+                    }
+                    return true;
+                };
+                const tryMoveBy = (dx, dy) => {
+                    if (canMoveTo(this.player.x + dx, this.player.y)) this.player.x += dx;
+                    if (canMoveTo(this.player.x, this.player.y + dy)) this.player.y += dy;
+                };
+                if (this.keyState['w'] || this.keyState['arrowup']) { tryMoveBy(0, -moveDistance); this.player.direction = 'up'; }
+                if (this.keyState['s'] || this.keyState['arrowdown']) { tryMoveBy(0, moveDistance); this.player.direction = 'down'; }
+                if (this.keyState['a'] || this.keyState['arrowleft']) { tryMoveBy(-moveDistance, 0); this.player.direction = 'left'; }
+                if (this.keyState['d'] || this.keyState['arrowright']) { tryMoveBy(moveDistance, 0); this.player.direction = 'right'; }
+            }
+            _updateViewFollowPlayer() {
+                if (!this.mapWidth || !this.mapHeight) return;
+                const desiredX = this.player.x - this.view.width / 2;
+                const desiredY = this.player.y - this.view.height / 2;
+                this.view.x = Math.max(0, Math.min(desiredX, this.mapWidth - this.view.width));
+                this.view.y = Math.max(0, Math.min(desiredY, this.mapHeight - this.view.height));
+            }
+            _loadMapImage(src) {
+                return new Promise((resolve, reject) => {
+                    this.mapImage.onload = () => { this.mapWidth = this.mapImage.width; this.mapHeight = this.mapImage.height; resolve(); };
+                    this.mapImage.onerror = reject; this.mapImage.src = src;
+                });
+            }
+            fadeIn() { this.fadeEffect.alpha = 0; }
+            _addEventListeners() {
+                this._boundKeyHandler = (e) => this.keyState[e.key.toLowerCase()] = (e.type === 'keydown');
+                window.addEventListener('keydown', this._boundKeyHandler);
+                window.addEventListener('keyup', this._boundKeyHandler);
+            }
+        }
+
+        // =======================================================================
+        //   2. 迷宫小游戏设置与通信逻辑
+        // =======================================================================
+
+        const TIME_LIMIT_SECONDS = 30; // 设定60秒倒计时
+
+        // 定义迷宫地图数据
+        const mazeMapData = {
+            name: "计时迷宫",
+            img: '../assets/img/map/maze3.png', // 确保这个路径正确
+            enter: { pos: [1,35] },
+            exit: { pos: [[63, 9]] },
+            free : [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0], [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0], [0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0], [0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0], [0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0], [0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0], [0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0], [0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0], [0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0], [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0], [0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0], [0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0], [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0], [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
+        };
+
+        let isGameOver = false;
+        let timerInterval = null;
+
+        /**
+         * 向主游戏窗口发送小游戏结果
+         * @param {('success'|'failure')} result - 游戏结果
+         */
+        function notifyParent(result) {
+            if (isGameOver) return; // 防止重复发送
+            isGameOver = true;
+            clearInterval(timerInterval); // 游戏结束，停止计时器
+
+            const feedbackOverlay = document.getElementById('feedback-overlay');
+            feedbackOverlay.textContent = result === 'success' ? '挑战成功！' : '挑战失败！';
+            feedbackOverlay.classList.add('visible'); // <-- 正确的操作：通过添加类来显示
+
+            // 延迟1.5秒后发送消息，让玩家看到结果
+            setTimeout(() => {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'mg:done', result: result }, '*');
+                }
+            }, 1500);
+        }
+
+        /**
+         * 启动并管理计时器
+         */
+        function startTimer() {
+            const timerElement = document.getElementById('timer-display');
+            let timeLeft = TIME_LIMIT_SECONDS;
+            timerElement.textContent = timeLeft;
+
+            timerInterval = setInterval(() => {
+                if (isGameOver) {
+                    clearInterval(timerInterval);
+                    return;
+                }
+                timeLeft--;
+                timerElement.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    notifyParent('failure'); // 时间到，挑战失败
+                }
+            }, 1000);
+        }
+
+        /**
+         * 初始化并运行迷宫小游戏的主函数
+         */
+        async function main() {
+            const canvas = document.getElementById('gameCanvas');
+            if (!canvas) {
+                console.error("画布(Canvas)元素未找到!");
+                return;
+            }
+
+            const mapData = new MapData(mazeMapData);
+            const mapManager = new MapManager({ canvas, mapData });
+
+            try {
+                await mapManager._init();
+                startTimer(); // 地图加载完毕后开始计时
+                
+                // 游戏主循环，等待玩家到达出口
+                const result = await mapManager.start();
+                if (result && result.action === 'exit') {
+                    notifyParent('success'); // 到达出口，挑战成功
+                }
+            } catch (error) {
+                console.error("启动迷宫小游戏失败:", error);
+                notifyParent('failure');
+            }
+        }
+
+        // --- 页面加载完成后，启动游戏 ---
+        document.addEventListener('DOMContentLoaded', main);
+
+        // --- 绑定跳过按钮的事件 ---
+        document.getElementById('skip-button').addEventListener('click', () => {
+            notifyParent('success'); // 跳过视为成功
+        });
+    </script>
+</body>
+</html>

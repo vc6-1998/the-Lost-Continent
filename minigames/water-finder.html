@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>minigame-水源探测</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #1a5c6c, #1a6c5c);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            color: white;
+        }
+        
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            margin-top: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 10px;
+            color: #4fc3f7;
+            text-shadow: 0 0 10px rgba(79, 195, 247, 0.7);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            color: #bbbbbb;
+            margin-bottom: 20px;
+        }
+        
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            background: rgba(30, 30, 60, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+        }
+        
+        .info-card {
+            background: rgba(25, 25, 50, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            width: 48%;
+        }
+        
+        .info-card h3 {
+            color: #4fc3f7;
+            margin-bottom: 10px;
+            font-size: 1.3rem;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        button {
+            background: linear-gradient(to right, #2196F3, #21CBF3);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 1.1rem;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(33, 150, 243, 0.4);
+        }
+        
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(33, 150, 243, 0.6);
+        }
+        
+        button:active {
+            transform: translateY(1px);
+        }
+        
+        /* 小游戏覆盖层样式 */
+        #minigame-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s, visibility 0.5s;
+        }
+        
+        #minigame-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .minigame-container {
+            background: linear-gradient(145deg, #1e3c72, #2a5298);
+            border-radius: 15px;
+            padding: 30px;
+            width: 90%;
+            max-width: 700px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+            text-align: center;
+        }
+        
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+        }
+        
+        #minigame-prompt {
+            font-size: 1.4rem;
+            margin-bottom: 15px;
+            color: #ffffff;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        #minigame-grid {
+            display: grid;
+            gap: 4px;
+            margin: 0 auto 20px;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 10px;
+        }
+        
+        .minigame-grid-btn {
+            width: 35px;
+            height: 35px;
+            border: none;
+            border-radius: 5px;
+            background: #3498db;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 3px 0 #2980b9;
+        }
+        
+        .minigame-grid-btn:hover {
+            background: #2980b9;
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #2980b9;
+        }
+        
+        .minigame-grid-btn:active {
+            transform: translateY(3px);
+            box-shadow: none;
+        }
+        
+        .minigame-grid-btn.revealed {
+            background: #1a5276;
+            transform: translateY(3px);
+            box-shadow: none;
+        }
+        
+        .minigame-grid-btn.flagged::after {
+            content: "🚩";
+        }
+        
+        .minigame-grid-btn.water-source {
+            background: #e74c3c;
+            animation: pulse 1s infinite;
+        }
+        
+        .minigame-grid-btn.water-source::after {
+            content: "💧";
+            font-size: 1.4rem;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        #minigame-timer-container {
+            width: 100%;
+            height: 20px;
+            background: #34495e;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        #minigame-timer-bar {
+            height: 100%;
+            background: linear-gradient(to right, #2ecc71, #f1c40f, #e74c3c);
+            width: 100%;
+            transition: width 0.1s linear;
+        }
+        
+        .game-result {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+        }
+        
+        .success {
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
+        }
+        
+        .failure {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+        }
+        
+        .instructions {
+            background: rgba(30, 30, 60, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+        
+        .instructions h2 {
+            color: #4fc3f7;
+            margin-bottom: 15px;
+        }
+        
+        .instructions ul {
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        
+        .instructions li strong {
+            color: #4fc3f7;
+        }
+        
+        .counter {
+            background: rgba(25, 25, 50, 0.9);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .counter span {
+            margin-left: 8px;
+            font-weight: bold;
+            color: #4fc3f7;
+        }
+        
+        @media (max-width: 700px) {
+            .minigame-grid-btn {
+                width: 28px;
+                height: 28px;
+                font-size: 1rem;
+            }
+            
+            .counter {
+                font-size: 1rem;
+                padding: 8px 12px;
+            }
+            
+            #minigame-prompt {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <script>
+        (() => {
+            const BGM_SRC = '../assets/audio/bgm/shuidi.ogg'; // ←改成你的路径
+            const VOLUME = 0.1;
+            let audio, ctx, source;
+
+            function ensureAudio() {
+                if (!audio) {
+                    audio = new Audio(BGM_SRC);
+                    audio.loop = true;
+                    audio.volume = VOLUME;
+                }
+                return audio;
+            }
+
+            // 尝试用 <audio> 直接播；失败再用 WebAudio“解锁”兜底
+            function tryPlay() {
+                const a = ensureAudio();
+                return a.play().catch(() => unlockViaGesture());
+            }
+
+            // WebAudio 解锁套路（iOS 常用）：在用户手势后 resume() 再播放
+            function unlockViaGesture() {
+                try {
+                    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+                    if (ctx.state === 'suspended') return ctx.resume().then(() => ensureAudio().play());
+                    return ensureAudio().play();
+                } catch (e) {
+                    showEnableButton();
+                    return Promise.reject(e);
+                }
+            }
+
+            function showEnableButton() {
+                if (document.getElementById('enable-audio-btn')) return;
+                const btn = document.createElement('button');
+                btn.id = 'enable-audio-btn';
+                btn.textContent = '点击开启音效';
+                Object.assign(btn.style, {
+                    position: 'fixed', right: '14px', bottom: '14px', zIndex: 2147483647,
+                    padding: '10px 14px', borderRadius: '12px', border: '2px solid #000',
+                    background: '#FFD400', color: '#000', fontWeight: '700', cursor: 'pointer'
+                });
+                btn.onclick = () => { unlockViaGesture().then(() => btn.remove()).catch(() => { }); };
+                document.body.appendChild(btn);
+            }
+
+            // —— 1) 页面加载先尝试自动播放（Chromium/桌面常能成功）
+            tryPlay().catch(() => { /* 被拦截就等待手势 */ });
+
+            // —— 2) 一旦子页里有手势就再尝试（移动端常在这里成功）
+            const startOnce = () => { tryPlay().finally(cleanup); };
+            const cleanup = () => {
+                document.removeEventListener('pointerdown', startOnce, true);
+                document.removeEventListener('keydown', startOnce, true);
+            };
+            document.addEventListener('pointerdown', startOnce, true);
+            document.addEventListener('keydown', startOnce, true);
+
+            // —— 3) 父页转发的手势（同源/常见浏览器里也有效）
+            window.addEventListener('message', (e) => {
+                if (e?.data?.type === 'mg:primeAudio') tryPlay();
+            });
+
+            // 退出时停止
+            function stop() { try { audio && (audio.pause(), audio.currentTime = 0); } catch { } }
+            window.addEventListener('pagehide', stop);
+            window.addEventListener('beforeunload', stop);
+
+            // 如果你有 MG_DONE_* 钩子，包一层确保退出前停音
+            ['MG_DONE_SUCCESS', 'MG_DONE_FAILURE'].forEach((name) => {
+                const orig = window[name];
+                if (typeof orig === 'function') {
+                    window[name] = (...args) => { stop(); return orig.apply(window, args); };
+                }
+            });
+        })();
+    </script>
+
+    <header>
+        <h1>找到干净的水源！</h1>
+        <p class="subtitle">使用声波探测技术定位地下水源</p>
+    </header>
+
+    <div class="container">
+        <div class="game-info">
+            <div class="info-card">
+                <h3>游戏目标</h3>
+                <p>使用声波探测技术，准确标记所有地下水源位置。避免直接探测到水源，否则会引发事故！</p>
+            </div>
+            <div class="info-card">
+                <h3>游戏规则</h3>
+                <p>左键探测地块，右键标记水源。数字表示周围8格中的水源数量。探测到空白区域会自动扩展。</p>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="start-game">开始探测水源</button>
+        </div>
+
+        <div class="instructions">
+            <h2>游戏指南</h2>
+            <ul>
+                <li><strong>左键点击</strong> - 探测当前地块，显示周围水源数量</li>
+                <li><strong>右键点击</strong> - 标记/取消标记可疑水源位置</li>
+                <li><strong>数字含义</strong> - 显示的数字表示周围8个地块中的水源数量</li>
+                <li><strong>自动扩展</strong> - 探测到空白区域会自动扩展揭示相连区域</li>
+                <li><strong>胜利条件</strong> - 准确标记所有水源位置</li>
+                <li><strong>失败条件</strong> - 直接探测到水源或时间耗尽</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 小游戏覆盖层 -->
+    <div id="minigame-overlay">
+        <div class="minigame-container">
+            <div class="game-header">
+                <div class="counter">水源数量: <span id="water-counter">20</span></div>
+                <div class="counter">剩余时间: <span id="time-counter">180</span>秒</div>
+                <button id="skip-btn" style="display:none;">跳过本关（判成功）</button>
+            </div>
+            <div id="minigame-prompt">准备开始探测！请标记所有水源位置</div>
+            <div id="minigame-timer-container">
+                <div id="minigame-timer-bar"></div>
+            </div>
+            <div id="minigame-grid"></div>
+        </div>
+    </div>
+
+
+    <script>
+        /* == 点击音效（全局可用，带音频池避免延迟/叠音） == */
+        const PLAY_CLICK = (() => {
+            const SRC = '../assets/audio/se/shuidi.ogg';   // ← 换成你的音效文件路径
+            const VOLUME = 1;                          // 0~1，按需要微调
+            const POOL = 8;                               // 最多同时重叠的点击数
+            const pool = Array.from({ length: POOL }, () => {
+                const a = new Audio(SRC);
+                a.preload = 'auto';
+                a.volume = VOLUME;
+                return a;
+            });
+            let i = 0;
+            return () => {
+                const a = pool[i++ % POOL];
+                try { a.currentTime = 0; a.play(); } catch { }
+            };
+        })();
+        /* —— 嵌入/参数上下文 —— */
+        const __URL = new URL(location.href);
+        const __P = __URL.searchParams;
+
+        // 是否嵌入（任意一个为 1 即视为嵌入）
+        const __EMBED = (__P.get('embed') === '1');       // 仅表示被嵌入
+        const __AUTOSTART = (__P.get('autostart') === '1');   // 是否自动开始
+
+        // 是否允许跳过
+        const __ALLOW_SKIP = (__P.get('allowSkip') === '1');
+        // 父页面 Origin（后面 postMessage 用；本地调试先用 *，接入主工程时会改成具体域）
+        const __PARENT_ORIGIN = __P.get('parentOrigin') || '*';
+
+        // 可选难度参数（保留将来扩展）
+        const __SIZE = parseInt(__P.get('size') || '') || null;
+        const __COUNT = parseInt(__P.get('count') || '') || null;
+        const __TIME = parseInt(__P.get('time') || '') || null;
+        class MiniGameManager {
+            constructor() {
+                this.overlay = document.getElementById('minigame-overlay');
+                this.promptEl = document.getElementById('minigame-prompt');
+                this.gridEl = document.getElementById('minigame-grid');
+                this.timerContainerEl = document.getElementById('minigame-timer-container');
+                this.timerBarEl = document.getElementById('minigame-timer-bar');
+                this.waterCounterEl = document.getElementById('water-counter');
+                this.timeCounterEl = document.getElementById('time-counter');
+
+                this.gameResolve = null;
+                this.gameLogic = null;
+                this.timerInterval = null;
+            }
+
+            show(gameName, params) {
+                this.overlay.classList.add('visible');
+                this.gridEl.hidden = false;
+                this.timerContainerEl.style.visibility = 'visible';
+
+                if (gameName === 'water_finder') {
+                    this.gameLogic = this._runWaterFinderGame(params);
+                }
+                else {
+                    console.error(`Unknown minigame: ${gameName}`);
+                    return Promise.resolve('failure');
+                }
+
+                return new Promise(resolve => {
+                    this.gameResolve = resolve;
+                });
+            }
+
+            hide() {
+                this.overlay.classList.remove('visible');
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                }
+                if (this.gameLogic && this.gameLogic.cleanup) {
+                    this.gameLogic.cleanup();
+                }
+            }
+
+            _endGame(result) {
+                // 1) 先把 Promise 解决掉（内部用）
+                if (this.gameResolve) {
+                    this.gameResolve(result);
+                    this.gameResolve = null;
+                }
+
+                // 2) 先在页面里显示“结果提示”（成功/失败）
+                const resultEl = document.createElement('div');
+                resultEl.className = `game-result ${result === 'success' ? 'success' : 'failure'}`;
+                resultEl.textContent = result === 'success' ? '任务成功！水源已定位！' : '任务失败！水源未获取！';
+                // 把提示插在网格容器后面（你原来也是这么放的）
+                this.gridEl.parentNode.insertBefore(resultEl, this.gridEl.nextSibling);
+
+                // 3) 过一小段时间再通知父页面关闭 iframe（让玩家看得到提示）
+                const DELAY_MS = 1500; // 可按需调 1200~2000
+                try {
+                    if (window.parent && window.parent !== window) {
+                        setTimeout(() => {
+                            try {
+                                window.parent.postMessage(
+                                    { type: 'mg:done', id: 'water-finder', result },
+                                    __PARENT_ORIGIN
+                                );
+                            } catch (e) { /* 忽略跨域等异常 */ }
+                        }, DELAY_MS);
+                    }
+                } catch (e) {
+                    // 忽略
+                }
+
+                // 4) 原有的收尾：给足显示时间后把本页内容收起
+                // （父页收到消息关闭 iframe 后，这段即使执行不到也没关系）
+                setTimeout(() => {
+                    this.hide();
+                    if (resultEl.parentNode) {
+                        resultEl.parentNode.removeChild(resultEl);
+                    }
+                }, 2500);
+            }
+
+
+            // --- 游戏逻辑: 水源探测 (扫雷变体) ---
+            _runWaterFinderGame(params) {
+                this.gridEl.innerHTML = '';
+
+                const size = 12; // 固定12x12棋盘
+                const waterSourcesCount = 20; // 固定20个水源
+                let remainingFlags = waterSourcesCount;
+                const timeLimit = 180; // 秒
+
+                this.waterCounterEl.textContent = remainingFlags;
+                this.timeCounterEl.textContent = timeLimit;
+                this.promptEl.textContent = `探测开始！请标记 ${waterSourcesCount} 个水源位置`;
+
+                this.gridEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+                const btnSize = Math.min(35, 600 / size);
+                this.gridEl.style.width = `${size * (btnSize + 4)}px`;
+                this.gridEl.style.height = `${size * (btnSize + 4)}px`;
+
+                const board = Array(size * size).fill(0);
+                const waterLocations = new Set();
+
+                // 随机生成水源位置
+                while (waterLocations.size < waterSourcesCount) {
+                    const randomIndex = Math.floor(Math.random() * board.length);
+                    waterLocations.add(randomIndex);
+                }
+
+                // 获取相邻格子索引
+                const getNeighbors = (index) => {
+                    const neighbors = [];
+                    const x = index % size;
+                    const y = Math.floor(index / size);
+
+                    for (let i = -1; i <= 1; i++) {
+                        for (let j = -1; j <= 1; j++) {
+                            if (i === 0 && j === 0) continue;
+
+                            const newX = x + j;
+                            const newY = y + i;
+
+                            if (newX >= 0 && newX < size && newY >= 0 && newY < size) {
+                                neighbors.push(newY * size + newX);
+                            }
+                        }
+                    }
+                    return neighbors;
+                };
+
+                // 计算每个格子的水源数量
+                const waterCounts = Array(size * size).fill(0);
+                for (let i = 0; i < board.length; i++) {
+                    if (waterLocations.has(i)) {
+                        waterCounts[i] = -1; // 水源位置标记为-1
+                    } else {
+                        const neighbors = getNeighbors(i);
+                        waterCounts[i] = neighbors.filter(n => waterLocations.has(n)).length;
+                    }
+                }
+
+                const buttons = [];
+                let gameActive = true;
+
+                // 创建游戏格子
+                for (let i = 0; i < board.length; i++) {
+                    const button = document.createElement('button');
+                    button.className = 'minigame-grid-btn water-game';
+                    button.dataset.index = i;
+                    button.style.width = `${btnSize}px`;
+                    button.style.height = `${btnSize}px`;
+
+                    // 左键点击事件
+                    button.addEventListener('click', () => {
+                        PLAY_CLICK(); 
+                        if (!gameActive || button.classList.contains('revealed') || button.classList.contains('flagged')) return;
+
+                        if (waterLocations.has(i)) {
+                            // 点到水源
+                            button.classList.add('water-source');
+                            this.promptEl.textContent = `致命错误！直接触碰到了高压水脉！`;
+                            revealAll();
+                            gameActive = false;
+                            this._endGame('failure');
+                            return;
+                        }
+
+                        // 揭示格子
+                        revealCell(i);
+
+                        // 检查胜利条件
+                        checkWinCondition();
+                    });
+
+                    // 右键点击事件
+                    button.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        PLAY_CLICK(); 
+                        if (!gameActive || button.classList.contains('revealed')) return;
+
+                        if (button.classList.contains('flagged')) {
+                            button.classList.remove('flagged');
+                            remainingFlags++;
+                        } else if (remainingFlags > 0) {
+                            button.classList.add('flagged');
+                            remainingFlags--;
+                        }
+
+                        this.waterCounterEl.textContent = remainingFlags;
+                        checkWinCondition();
+                    });
+
+                    this.gridEl.appendChild(button);
+                    buttons.push(button);
+                }
+
+                // 揭示格子的函数（递归实现自动扩展）
+                const revealCell = (index) => {
+                    const button = buttons[index];
+
+                    if (button.classList.contains('revealed') || waterLocations.has(index)) {
+                        return;
+                    }
+
+                    button.classList.add('revealed');
+                    const count = waterCounts[index];
+
+                    if (count > 0) {
+                        button.textContent = count;
+                        // 根据数字设置不同颜色
+                        const colors = ['#2ecc71', '#3498db', '#e74c3c', '#9b59b6', '#f39c12', '#1abc9c', '#34495e', '#7f8c8d'];
+                        button.style.color = colors[count - 1] || '#ffffff';
+                    } else {
+                        // 如果是空白格子，递归揭示相邻格子
+                        const neighbors = getNeighbors(index);
+                        neighbors.forEach(neighborIndex => {
+                            if (!buttons[neighborIndex].classList.contains('revealed')) {
+                                revealCell(neighborIndex);
+                            }
+                        });
+                    }
+                };
+
+                // 揭示所有格子
+                const revealAll = () => {
+                    buttons.forEach((button, index) => {
+                        if (!button.classList.contains('revealed')) {
+                            if (waterLocations.has(index)) {
+                                button.classList.add('water-source');
+                            } else if (button.classList.contains('flagged')) {
+                                button.classList.add('incorrect-flag');
+                            }
+                        }
+                    });
+                };
+
+                // 检查胜利条件
+                const checkWinCondition = () => {
+                    // 检查所有水源是否都被标记
+                    let allWaterFlagged = true;
+                    waterLocations.forEach(index => {
+                        if (!buttons[index].classList.contains('flagged')) {
+                            allWaterFlagged = false;
+                        }
+                    });
+
+                    // 检查是否有错误标记
+                    let noIncorrectFlags = true;
+                    buttons.forEach((button, index) => {
+                        if (button.classList.contains('flagged') && !waterLocations.has(index)) {
+                            noIncorrectFlags = false;
+                        }
+                    });
+
+                    if (allWaterFlagged && noIncorrectFlags) {
+                        this.promptEl.textContent = '成功！所有水源都已定位！';
+                        revealAll();
+                        gameActive = false;
+                        this._endGame('success');
+                    }
+                };
+
+                // 计时器功能
+                this.timerContainerEl.style.visibility = 'visible';
+                let timeLeft = timeLimit;
+                this.timerBarEl.style.width = '100%';
+
+                this.timerInterval = setInterval(() => {
+                    timeLeft -= 0.1;
+                    this.timeCounterEl.textContent = Math.ceil(timeLeft);
+                    this.timerBarEl.style.width = `${(timeLeft / timeLimit) * 100}%`;
+
+                    if (timeLeft <= 0) {
+                        clearInterval(this.timerInterval);
+                        this.promptEl.textContent = '时间耗尽！';
+                        revealAll();
+                        gameActive = false;
+                        this._endGame('failure');
+                    }
+                }, 100);
+
+                return {
+                    cleanup: () => {
+                        if (this.timerInterval) {
+                            clearInterval(this.timerInterval);
+                        }
+                    }
+                };
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const gameManager = new MiniGameManager();
+
+            // 跳过按钮的显示逻辑（你已有，保留）
+            const skipBtn = document.getElementById('skip-btn');
+            if (skipBtn) {
+                if (__ALLOW_SKIP) {
+                    skipBtn.style.display = '';
+                    skipBtn.addEventListener('click', () => gameManager._endGame('success'));
+                } else {
+                    skipBtn.style.display = 'none';
+                }
+            }
+
+            const startBtn = document.getElementById('start-game');
+            const header = document.querySelector('header');
+            const introBox = document.querySelector('.container');
+
+            if (__AUTOSTART) {
+                // 仅在显式请求自动开始时：隐藏介绍并直接开局
+                if (startBtn) startBtn.style.display = 'none';
+                if (header) header.style.display = 'none';
+                if (introBox) introBox.style.display = 'none';
+
+                gameManager.show('water_finder').then(res => {
+                    console.log('[embed:auto] 游戏结束 =', res);
+                });
+            } else {
+                // 无论是否嵌入，都保留介绍与“开始”按钮，用户点击后再进入
+                if (startBtn) {
+                    startBtn.addEventListener('click', () => {
+                        gameManager.show('water_finder').then(res => {
+                            console.log('[start] 游戏结束 =', res);
+                        });
+                    });
+                }
+            }
+        });
+
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>熔岩迷宫试炼</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'lava-wall': '#2c1b13', 'lava-player': '#34d399', 'lava-rock': '#854d0e',
+                        'lava-goal': '#f97316', 'lava-path': '#573f32', 'lava-ui': '#443428', 'lava-glow': '#ff6a00'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .game-cell {
+                @apply w-10 h-10 border border-black/20 flex items-center justify-center;
+            }
+            .maze-container {
+                @apply relative overflow-hidden bg-lava-ui/80 p-2 rounded-lg shadow-xl border-2 border-lava-wall;
+                box-shadow: 0 0 20px rgba(255, 106, 0, 0.3);
+            }
+            .control-btn {
+                @apply w-14 h-14 bg-lava-ui hover:bg-lava-wall text-lava-glow rounded-lg flex items-center justify-center text-2xl transition-all duration-150 active:scale-90 border-2 border-lava-wall;
+            }
+            .result-overlay {
+                /* [保留样式] 只定义可见时的样式 */
+                @apply absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-center p-4;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-red-900 via-orange-900 to-black min-h-screen flex flex-col items-center justify-center p-4 text-white">
+    <div class="max-w-xl w-full mx-auto">
+        <div class="text-center mb-6">
+            <h1 class="text-3xl font-bold mb-2 text-lava-glow" style="text-shadow: 0 0 8px #ff6a00;">熔岩迷宫试炼</h1>
+            <p class="text-gray-300">在步数耗尽前，抵达出口！</p>
+        </div>
+        
+        <div class="flex justify-between items-center mb-4 bg-lava-ui/80 p-3 rounded-lg border border-lava-wall">
+            <div>
+                <span class="text-gray-300">步数:</span>
+                <span id="move-count" class="font-bold text-lava-player ml-1">0 / 100</span>
+            </div>
+            
+            <button id="give-up-btn" class="bg-red-800 hover:bg-red-700 px-3 py-1 rounded flex items-center text-sm text-white border border-red-500/50">
+                <i class="fa fa-flag mr-1"></i> 放弃试炼
+            </button>
+        </div>
+        
+        <div class="maze-container">
+            <div id="maze" class="grid grid-cols-12 gap-0"></div>
+            
+            <div id="success-message" class="result-overlay">
+                <div class="text-6xl text-lava-goal mb-4"><i class="fa fa-trophy"></i></div>
+                <h2 class="text-3xl font-bold mb-2">试炼通过！</h2>
+                <p class="mb-4">你成功走出了熔岩迷宫！</p>
+                <p class="mb-6 text-lg">总步数: <span id="final-steps" class="text-lava-player font-bold">0</span></p>
+            </div>
+
+            <div id="failure-message" class="result-overlay">
+                <div class="text-6xl text-red-500 mb-4"><i class="fa fa-times-circle"></i></div>
+                <h2 class="text-3xl font-bold mb-2">试炼失败！</h2>
+                <p id="failure-reason" class="mb-6 text-lg">原因</p>
+            </div>
+        </div>
+        
+        <div class="mt-6 md:hidden grid grid-cols-3 gap-2 max-w-xs mx-auto">
+            <div class="col-start-2"><button id="btn-up" class="control-btn"><i class="fa fa-arrow-up"></i></button></div>
+            <div><button id="btn-left" class="control-btn"><i class="fa fa-arrow-left"></i></button></div>
+            <div><button id="btn-down" class="control-btn"><i class="fa fa-arrow-down"></i></button></div>
+            <div><button id="btn-right" class="control-btn"><i class="fa fa-arrow-right"></i></button></div>
+        </div>
+        <div class="mt-6 text-sm text-gray-300 bg-lava-ui/80 p-4 rounded-lg border border-lava-wall">
+            <h3 class="text-white font-bold mb-2">试炼规则</h3>
+            <p class="mb-3">使用 **WASD** 或 **方向键** 移动。推动滚石，抵达炽热的出口。</p>
+            <div class="flex flex-wrap gap-x-6 gap-y-2">
+                <div class="flex items-center"><div class="w-4 h-4 bg-lava-wall mr-2 rounded-sm"></div><span>火山岩壁</span></div>
+                <div class="flex items-center"><div class="w-4 h-4 bg-lava-player mr-2 rounded-sm"></div><span>玩家</span></div>
+                <div class="flex items-center"><div class="w-4 h-4 bg-lava-rock mr-2 rounded-sm"></div><span>滚石</span></div>
+                <div class="flex items-center"><div class="w-4 h-4 bg-lava-goal mr-2 rounded-sm"></div><span>出口</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const P = new URLSearchParams(location.search);
+        const ALLOW_SKIP = P.get('allowSkip') === '1';
+
+        function __mgNotifyParent(result) {
+            setTimeout(() => {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'mg:done', id: 'sokoban-trial', result: result }, '*');
+                } else {
+                    console.log(`Minigame finished with result: ${result}`);
+                }
+            }, 2000);
+        }
+
+        const CELL_TYPES = { EMPTY: 0, WALL: 1, PLAYER: 2, BOX: 3, GOAL: 4 };
+        const MOVE_LIMIT = 100;
+        
+        const MAZE_MAP = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], [1, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 1, 0, 0, 3, 0, 1], [1, 0, 1, 0, 1, 0, 1, 0, 1, 3, 1, 1],
+            [1, 0, 1, 0, 3, 1, 1, 0, 1, 0, 1, 1], [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1],
+            [1, 1, 3, 3, 0, 1, 1, 3, 1, 0, 0, 1], [1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1],
+            [1, 0, 3, 1, 1, 1, 1, 0, 0, 1, 0, 1], [1, 0, 0, 3, 0, 0, 0, 0, 0, 1, 0, 1],
+            [1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 4, 1], [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ];
+        
+        const gameState = {
+            maze: [], player: { x: 0, y: 0 }, boxes: [], goal: { x: 0, y: 0 },
+            moveCount: 0, isGameOver: false, 
+        };
+        
+        const mazeElement = document.getElementById('maze');
+        const moveCountElement = document.getElementById('move-count');
+        const giveUpBtn = document.getElementById('give-up-btn');
+        const successMessage = document.getElementById('success-message');
+        const failureMessage = document.getElementById('failure-message');
+        const failureReason = document.getElementById('failure-reason');
+        const finalStepsElement = document.getElementById('final-steps');
+        const btnUp = document.getElementById('btn-up'), btnDown = document.getElementById('btn-down'), btnLeft = document.getElementById('btn-left'), btnRight = document.getElementById('btn-right');
+        
+        function initGame() {
+            gameState.moveCount = 0;
+            gameState.isGameOver = false;
+            gameState.boxes = [];
+            moveCountElement.textContent = `0 / ${MOVE_LIMIT}`;
+            gameState.maze = MAZE_MAP.map(row => [...row]);
+            
+            for (let y = 0; y < gameState.maze.length; y++) {
+                for (let x = 0; x < gameState.maze[y].length; x++) {
+                    if (gameState.maze[y][x] === CELL_TYPES.PLAYER) gameState.player = { x, y };
+                    else if (gameState.maze[y][x] === CELL_TYPES.BOX) gameState.boxes.push({ x, y });
+                    else if (gameState.maze[y][x] === CELL_TYPES.GOAL) gameState.goal = { x, y };
+                }
+            }
+
+            // [核心修复] 直接用JS控制显示，确保初始隐藏
+            successMessage.style.display = 'none';
+            failureMessage.style.display = 'none';
+
+            renderMaze();
+ 
+        }
+        
+        function renderMaze() {
+            mazeElement.innerHTML = '';
+            for (let y = 0; y < gameState.maze.length; y++) {
+                for (let x = 0; x < gameState.maze[y].length; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'game-cell';
+                    let icon = null;
+                    
+                    switch (gameState.maze[y][x]) {
+                        case CELL_TYPES.WALL: cell.classList.add('bg-lava-wall'); break;
+                        case CELL_TYPES.EMPTY: cell.classList.add('bg-lava-path'); break;
+                        case CELL_TYPES.PLAYER:
+                            cell.classList.add('bg-lava-player');
+                            icon = document.createElement('i'); icon.className = 'fa fa-user text-white text-2xl'; cell.appendChild(icon);
+                            break;
+                        case CELL_TYPES.BOX:
+                            cell.classList.add('bg-lava-rock');
+                            icon = document.createElement('i'); icon.className = 'fa fa-th-large text-white/70 text-2xl'; cell.appendChild(icon);
+                            break;
+                        case CELL_TYPES.GOAL:
+                            cell.classList.add('bg-lava-goal');
+                            icon = document.createElement('i'); icon.className = 'fa fa-fire text-white text-2xl animate-pulse'; cell.appendChild(icon);
+                            break;
+                    }
+                    mazeElement.appendChild(cell);
+                }
+            }
+        }
+        
+        function movePlayer(dx, dy) {
+            if (gameState.isGameOver) return;
+            
+            const { x, y } = gameState.player;
+            const newX = x + dx, newY = y + dy;
+            
+            if (gameState.maze[newY][newX] === CELL_TYPES.WALL) return;
+            
+            const boxIndex = gameState.boxes.findIndex(box => box.x === newX && box.y === newY);
+            if (boxIndex !== -1) {
+                const newBoxX = newX + dx, newBoxY = newY + dy;
+                if (gameState.maze[newBoxY][newBoxX] === CELL_TYPES.WALL || gameState.boxes.some(box => box.x === newBoxX && box.y === newBoxY)) return;
+                
+                gameState.boxes[boxIndex] = { x: newBoxX, y: newBoxY };
+                gameState.maze[newY][newX] = CELL_TYPES.EMPTY;
+                gameState.maze[newBoxY][newBoxX] = (newBoxX === gameState.goal.x && newBoxY === gameState.goal.y) ? CELL_TYPES.GOAL : CELL_TYPES.BOX;
+            }
+            
+            gameState.maze[y][x] = (x === gameState.goal.x && y === gameState.goal.y) ? CELL_TYPES.GOAL : CELL_TYPES.EMPTY;
+            gameState.player = { x: newX, y: newY };
+            gameState.maze[newY][newX] = CELL_TYPES.PLAYER;
+            
+            gameState.moveCount++;
+            moveCountElement.textContent = `${gameState.moveCount} / ${MOVE_LIMIT}`;
+            
+            renderMaze();
+            
+            if (!checkGoalReached() && gameState.moveCount >= MOVE_LIMIT) {
+                loseGame("步数已耗尽！");
+            }
+        }
+        
+        function checkGoalReached() {
+            if (gameState.player.x === gameState.goal.x && gameState.player.y === gameState.goal.y) {
+                winGame();
+                return true;
+            }
+            return false;
+        }
+
+        function winGame() {
+            if (gameState.isGameOver) return;
+            gameState.isGameOver = true;
+            clearInterval(gameState.timerInterval);
+            finalStepsElement.textContent = gameState.moveCount;
+            successMessage.style.display = 'flex'; // [核心修复] 使用 style 控制显示
+            __mgNotifyParent('success');
+        }
+
+        function loseGame(reason) {
+            if (gameState.isGameOver) return;
+            gameState.isGameOver = true;
+            clearInterval(gameState.timerInterval);
+            failureReason.textContent = reason;
+            failureMessage.style.display = 'flex'; // [核心修复] 使用 style 控制显示
+            __mgNotifyParent('failure');
+        }
+        
+        function bindEvents() {
+            document.addEventListener('keydown', (e) => {
+                switch (e.key.toLowerCase()) {
+                    case 'w': case 'arrowup':    movePlayer(0, -1); e.preventDefault(); break;
+                    case 's': case 'arrowdown':  movePlayer(0, 1);  e.preventDefault(); break;
+                    case 'a': case 'arrowleft':  movePlayer(-1, 0); e.preventDefault(); break;
+                    case 'd': case 'arrowright': movePlayer(1, 0);  e.preventDefault(); break;
+                }
+            });
+            
+            btnUp.addEventListener('click', () => movePlayer(0, -1));
+            btnDown.addEventListener('click', () => movePlayer(0, 1));
+            btnLeft.addEventListener('click', () => movePlayer(-1, 0));
+            btnRight.addEventListener('click', () => movePlayer(1, 0));
+            
+            giveUpBtn.addEventListener('click', () => loseGame("你主动放弃了试炼。"));
+        }
+        
+        window.addEventListener('load', () => {
+            initGame();
+            bindEvents();
+
+            if (ALLOW_SKIP) {
+                const skipBtn = document.createElement('button');
+                skipBtn.textContent = '跳过试炼';
+                skipBtn.className = 'absolute top-4 right-4 bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm z-10';
+                skipBtn.onclick = () => {
+                    winGame();
+                };
+                document.body.appendChild(skipBtn);
+            }
+        });
+    </script>
+</body>
+</html>

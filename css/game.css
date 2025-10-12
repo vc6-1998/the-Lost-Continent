@@ -1,0 +1,153 @@
+* {
+    margin: 0;
+}
+body {
+	height: 100vh;
+	width: 100vw;
+    overflow-x: hidden;
+    background-color:black;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
+    background-attachment: fixed;
+    font-family: 'Arial', sans-serif;
+}
+.window {
+    width: 800px;
+    height: 600px;
+    position: absolute;
+    background-color: black;
+    top: 50%;
+    left: 50%;
+    border-image: url(../img/edge.png) 27;
+    transform: translate(-50%, -50%);
+    border: 15px solid;
+    border-radius: 10px;
+    background-repeat: no-repeat;
+    background-size: 800px 600px;
+    overflow: hidden;
+}
+
+canvas{
+    position:absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 100;
+    transform:translate(-50%,-50%);
+}
+
+#pauseOverlay {
+    position: fixed;
+    inset: 0; 
+    background: rgba(18, 16, 14, 0.8);
+    backdrop-filter: blur(2px); 
+    z-index: 9999;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+#pauseOverlay[aria-hidden="false"] {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#pausePanel {
+    width: 90%;
+    max-width: 500px;
+    background: rgba(30, 26, 22, 0.85);
+    padding: 24px 32px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45); 
+
+    border: 2px solid transparent;
+    border-image: url('data:image/svg+xml;utf8,<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><style>path{fill:rgba(200,180,140,0.5);}</style><path d="M0 0 H20 V10 H10 V20 H0z M80 0 H100 V20 H90 V10 H80z M0 80 H10 V90 H20 V100 H0z M90 80 H100 V100 H80 V90 H90z"/></svg>') 20 fill / 10px / 5px;
+
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+}
+
+#pauseOverlay[aria-hidden="false"] #pausePanel {
+    transform: scale(1);
+}
+
+#pauseTitle {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: #f0e6d2;
+    margin: 0 0 24px;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px rgba(255, 200, 100, 0.4);
+}
+
+.p-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.p-btn {
+    padding: 12px 20px;
+    border-radius: 0;
+    border: 1px solid rgba(200, 180, 140, 0.4);
+    background: transparent;
+    color: #dcd0b8;
+    cursor: pointer;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 15px;
+    font-weight: bold;
+    transition: background 0.3s, color 0.3s, border-color 0.3s;
+    flex-grow: 1;
+    min-width: 120px; 
+}
+
+.p-btn:hover:not([disabled]) {
+    background: rgba(200, 180, 140, 0.2);
+    color: #fff;
+    border-color: rgba(200, 180, 140, 0.8);
+}
+
+.p-btn[disabled] {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: rgba(150, 140, 120, 0.2);
+}
+
+#btnResume {
+    background: rgba(200, 180, 140, 0.15);
+    border-color: rgba(200, 180, 140, 0.6);
+}
+
+#slotPicker {
+    display: none;
+    border-top: 1px solid rgba(200, 180, 140, 0.2);
+    padding-top: 16px;
+    margin-top: 20px;
+}
+
+#slotPicker div:first-child {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 14px;
+    color: #bbaea0;
+    margin-bottom: 10px;
+}
+
+#saveMsg {
+    margin-top: 16px;
+    padding: 8px;
+    min-height: 20px;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 14px;
+    color: #f4c542; 
+    transition: opacity 0.3s;
+    white-space: pre-line; 
+}
+

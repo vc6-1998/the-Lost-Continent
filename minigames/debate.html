@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>辩论挑战</title>
+    <!-- 引入主游戏的CSS变量和基础样式 -->
+    <style>
+        /* 从 game.css 复制过来的基础样式和字体 */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: Georgia, "Times New Roman", "Source Han Serif SC", "思源宋体", serif;
+            background-color: transparent;
+            color: #e0e0e0;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        /* 游戏容器，模拟主游戏的遮罩效果 */
+        .game-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* 【修改】改为垂直居中 */
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(2px);
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        /* --- 复用 Choice Prompt 样式 --- */
+        .choice-prompt {
+            background-color: rgba(245, 238, 218, 0.85);
+            color: #4b3a2a;
+            border: 1px solid #c8bda8;
+            border-radius: 2px 8px 2px 8px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3), inset 0 0 15px rgba(160, 140, 110, 0.4);
+            font-family: Georgia, "Times New Roman", "Source Han Serif SC", "思源宋体", serif;
+            padding: 20px 30px;
+            margin-bottom: 25px;
+            max-width: 600px;
+            width: 90%;
+            text-align: center;
+            font-size: 24px;
+            line-height: 1.6;
+            font-weight: bold;
+        }
+
+        /* --- 复用 Choice Options 样式 --- */
+        .choice-options {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            width: 100%;
+        }
+
+        .choice-button {
+            background-color: rgba(245, 238, 218, 0.85);
+            color: #4b3a2a;
+            border: 1px solid #c8bda8;
+            border-radius: 2px 8px 2px 8px;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3), inset 0 0 15px rgba(160, 140, 110, 0.4);
+            font-family: Georgia, "Times New Roman", "Source Han Serif SC", "思源宋体", serif;
+            outline: none;
+            cursor: pointer;
+            width: 100%;
+            min-width: 300px;
+            max-width: 550px;
+            padding: 15px 25px;
+            text-align: center;
+            font-size: 20px;
+            transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, background-color 0.2s ease-out;
+        }
+
+        .choice-button:hover {
+            background-color: rgba(250, 245, 230, 0.95);
+            transform: scale(1.03) translateY(-2px);
+            box-shadow: 4px 4px 8px rgba(0,0,0,0.35), inset 0 0 15px rgba(160, 140, 110, 0.3);
+        }
+
+        /* 游戏结果提示 (现在也使用prompt样式) */
+        .game-result {
+            display: none; /* 默认隐藏 */
+        }
+        
+        /* 移动端适配 */
+        @media (max-width: 600px) {
+            .choice-prompt {
+                font-size: 20px;
+            }
+            .choice-button {
+                min-width: 90%;
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <script>
+        (() => {
+            const BGM_SRC = '../assets/audio/bgm/jap.ogg'; // ←改成你的路径
+            const VOLUME = 0.1;
+            let audio, ctx, source;
+
+            function ensureAudio() {
+                if (!audio) {
+                    audio = new Audio(BGM_SRC);
+                    audio.loop = true;
+                    audio.volume = VOLUME;
+                }
+                return audio;
+            }
+
+            // 尝试用 <audio> 直接播；失败再用 WebAudio“解锁”兜底
+            function tryPlay() {
+                const a = ensureAudio();
+                return a.play().catch(() => unlockViaGesture());
+            }
+
+            // WebAudio 解锁套路（iOS 常用）：在用户手势后 resume() 再播放
+            function unlockViaGesture() {
+                try {
+                    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+                    if (ctx.state === 'suspended') return ctx.resume().then(() => ensureAudio().play());
+                    return ensureAudio().play();
+                } catch (e) {
+                    showEnableButton();
+                    return Promise.reject(e);
+                }
+            }
+
+            function showEnableButton() {
+                if (document.getElementById('enable-audio-btn')) return;
+                const btn = document.createElement('button');
+                btn.id = 'enable-audio-btn';
+                btn.textContent = '点击开启音效';
+                Object.assign(btn.style, {
+                    position: 'fixed', right: '14px', bottom: '14px', zIndex: 2147483647,
+                    padding: '10px 14px', borderRadius: '12px', border: '2px solid #000',
+                    background: '#FFD400', color: '#000', fontWeight: '700', cursor: 'pointer'
+                });
+                btn.onclick = () => { unlockViaGesture().then(() => btn.remove()).catch(() => { }); };
+                document.body.appendChild(btn);
+            }
+
+            // —— 1) 页面加载先尝试自动播放（Chromium/桌面常能成功）
+            tryPlay().catch(() => { /* 被拦截就等待手势 */ });
+
+            // —— 2) 一旦子页里有手势就再尝试（移动端常在这里成功）
+            const startOnce = () => { tryPlay().finally(cleanup); };
+            const cleanup = () => {
+                document.removeEventListener('pointerdown', startOnce, true);
+                document.removeEventListener('keydown', startOnce, true);
+            };
+            document.addEventListener('pointerdown', startOnce, true);
+            document.addEventListener('keydown', startOnce, true);
+
+            // —— 3) 父页转发的手势（同源/常见浏览器里也有效）
+            window.addEventListener('message', (e) => {
+                if (e?.data?.type === 'mg:primeAudio') tryPlay();
+            });
+
+            // 退出时停止
+            function stop() { try { audio && (audio.pause(), audio.currentTime = 0); } catch { } }
+            window.addEventListener('pagehide', stop);
+            window.addEventListener('beforeunload', stop);
+
+            // 如果你有 MG_DONE_* 钩子，包一层确保退出前停音
+            ['MG_DONE_SUCCESS', 'MG_DONE_FAILURE'].forEach((name) => {
+                const orig = window[name];
+                if (typeof orig === 'function') {
+                    window[name] = (...args) => { stop(); return orig.apply(window, args); };
+                }
+            });
+        })();
+    </script>
+
+
+    <div class="game-container">
+        <!-- 审判长提问区域 (现在使用 choice-prompt 样式) -->
+        <div id="npc-statement" class="choice-prompt"></div>
+
+        <!-- 玩家选项区域 -->
+        <div class="choice-options" id="player-options">
+            <!-- 按钮将由JS动态生成 -->
+        </div>
+    </div>
+
+    <script>
+        // --- 嵌入通信 (代码不变) ---
+        const P = new URLSearchParams(location.search);
+        const ALLOW_SKIP = P.get('allowSkip') === '1';
+
+        function __mgNotifyParent(result) {
+            setTimeout(() => {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage(
+                        { type: 'mg:done', id: 'debate-game', result: result },
+                        '*'
+                    );
+                }
+            }, 1500);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- 游戏核心逻辑 (UI交互部分微调) ---
+            const npcStatementEl = document.getElementById('npc-statement');
+            const playerOptionsEl = document.getElementById('player-options');
+
+            // 【修改】结果现在也显示在提问框里
+            // const gameResultEl = document.getElementById('game-result');
+
+            const debateRounds = [
+                // ... (您的三轮辩论数据放在这里，无需改动)
+                {
+                    npc: "他的行为触犯了神圣的仪式规则。动机无法改变事实。",
+                    options: [
+                        { text: "规则若不考虑善意动机，那它本身就失去了公正的基础。", correct: true },
+                        { text: "你这是在扼杀善良！冷酷无情！", correct: false, feedback: "审判长：（面无表情）情绪化的指责无法动摇规则的基石。" },
+                        { text: "他还只是个孩子，请您宽恕他一次吧！", correct: false, feedback: "审判长：（声音冰冷）规则面前，没有年龄之分。" }
+                    ]
+                },
+                {
+                    npc: "为了维护整个族群的秩序与稳定，个体的过失必须被严惩。这是代价。",
+                    options: [
+                        { text: "真正的秩序，是保护每一个生命，而不是用牺牲生命来换取表面的稳定。", correct: true },
+                        { text: "这是谁定下的规矩？凭什么用一个生命去维护它？", correct: false, feedback: "审判长：这是自古流传的铁律，不容置疑。" },
+                        { text: "如果今天能牺牲他，明天是不是就能牺牲任何人？", correct: false, feedback: "审判长：不要混淆概念。他触犯了规则，这是前提。" }
+                    ]
+                },
+                {
+                    npc: "我们衡石域的‘义’，就是对规则的绝对服从。任何偏离都是背叛。",
+                    options: [
+                        { text: "不，真正的‘义’，是保护弱者的盾牌，是修正错误的勇气。这才是‘义’的真谛！", correct: true },
+                        { text: "你们的‘义’早已扭曲，变成了压迫的工具！", correct: false, feedback: "审判长：（眼神一凛）放肆！你竟敢否定我族的信仰！" },
+                        { text: "看来我和你没什么好说的了。", correct: false, feedback: "审判长：辩论结束。判决维持原判。" }
+                    ]
+                }
+            ];
+
+            let currentRound = 0;
+
+            function startGame() {
+                currentRound = 0;
+                loadRound(currentRound);
+            }
+
+            function loadRound(roundIndex) {
+                npcStatementEl.style.color = '#4b3a2a'; // 恢复默认颜色
+                if (roundIndex >= debateRounds.length) {
+                    winGame();
+                    return;
+                }
+                const roundData = debateRounds[roundIndex];
+                npcStatementEl.textContent = `审判长：“${roundData.npc}”`;
+                playerOptionsEl.innerHTML = '';
+
+                const shuffledOptions = [...roundData.options].sort(() => Math.random() - 0.5);
+
+                shuffledOptions.forEach(opt => {
+                    const button = document.createElement('button');
+                    button.className = 'choice-button';
+                    button.textContent = opt.text;
+                    button.onclick = () => selectOption(opt);
+                    playerOptionsEl.appendChild(button);
+                });
+            }
+
+            function selectOption(option) {
+                if (option.correct) {
+                    currentRound++;
+                    loadRound(currentRound);
+                } else {
+                    loseGame(option.feedback);
+                }
+            }
+
+            // 【UI修改】游戏结束时，在顶部的prompt框显示结果
+            function winGame() {
+                playerOptionsEl.innerHTML = '';
+                npcStatementEl.textContent = "辩论胜利！里奥被释放了。";
+                npcStatementEl.style.color = '#27ae60'; // 绿色
+                __mgNotifyParent('success');
+            }
+
+            function loseGame(feedback) {
+                playerOptionsEl.innerHTML = '';
+                npcStatementEl.textContent = feedback || "审判长：辩论结束，判决不变。";
+                npcStatementEl.innerHTML += "<br><br><span style='font-weight:bold; color:#c0392b;'>辩论失败！里奥被带走了。</span>";
+                npcStatementEl.style.color = '#4b3a2a';
+                __mgNotifyParent('failure');
+            }
+
+            // --- 跳过按钮 (逻辑不变，样式调整) ---
+            if (ALLOW_SKIP) {
+                const skipBtn = document.createElement('button');
+                skipBtn.textContent = '跳过';
+                skipBtn.className = 'choice-button';
+                Object.assign(skipBtn.style, {
+                    position: 'fixed',
+                    top: '20px',
+                    right: '20px',
+                    minWidth: '120px',
+                    maxWidth: '150px',
+                    padding: '10px 15px',
+                    fontSize: '16px'
+                });
+                skipBtn.onclick = () => {
+                    playerOptionsEl.innerHTML = '';
+                    npcStatementEl.textContent = "辩论胜利！里奥被释放了。";
+                    npcStatementEl.style.color = '#27ae60'; // 蓝色
+                    __mgNotifyParent('success');
+                };
+                document.body.appendChild(skipBtn);
+            }
+
+            // 启动游戏
+            startGame();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>密室逃脱 - 解密小游戏</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+
+    <!-- 配置Tailwind自定义颜色 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#8B5CF6',
+                        secondary: '#EC4899',
+                        accent: '#F59E0B',
+                        dark: '#1F2937',
+                        light: '#F9FAFB'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .room-object {
+                @apply cursor-pointer transition-all duration-300 hover:scale-105 hover:brightness-110;
+            }
+
+            .puzzle-item {
+                @apply bg-dark/80 rounded-lg p-4 mb-4 border border-gray-700;
+            }
+
+            .clue {
+                @apply text-sm text-gray-400 italic mt-2;
+            }
+
+            .modal-backdrop {
+                @apply fixed inset-0 bg-black/70 z-40 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300;
+            }
+
+                .modal-backdrop.active {
+                    @apply opacity-100 pointer-events-auto;
+                }
+
+            .modal-content {
+                @apply bg-gray-900 rounded-lg shadow-2xl max-w-md w-full transform scale-95 transition-transform duration-300;
+            }
+
+            .modal-backdrop.active .modal-content {
+                @apply scale-100;
+            }
+
+            .fade-in {
+                animation: fadeIn 0.5s ease-in-out;
+            }
+
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                }
+
+                to {
+                    opacity: 1;
+                }
+            }
+
+            .item-highlight {
+                animation: pulse 2s infinite;
+            }
+
+            @keyframes pulse {
+                0% {
+                    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
+                }
+
+                70% {
+                    box-shadow: 0 0 0 10px rgba(139, 92, 246, 0);
+                }
+
+                100% {
+                    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+                }
+            }
+        }
+    </style>
+    <style>
+        #success-modal #play-again {
+            display: none !important
+        }
+    </style>
+
+</head>
+<body class="bg-gray-900 text-light min-h-screen">
+    <script>
+        (() => {
+            const BGM_SRC = '../assets/audio/bgm/mishi.ogg'; // ←改成你的路径
+            const VOLUME = 0.55;
+            let audio, ctx, source;
+
+            function ensureAudio() {
+                if (!audio) {
+                    audio = new Audio(BGM_SRC);
+                    audio.loop = true;
+                    audio.volume = VOLUME;
+                }
+                return audio;
+            }
+
+            // 尝试用 <audio> 直接播；失败再用 WebAudio“解锁”兜底
+            function tryPlay() {
+                const a = ensureAudio();
+                return a.play().catch(() => unlockViaGesture());
+            }
+
+            // WebAudio 解锁套路（iOS 常用）：在用户手势后 resume() 再播放
+            function unlockViaGesture() {
+                try {
+                    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+                    if (ctx.state === 'suspended') return ctx.resume().then(() => ensureAudio().play());
+                    return ensureAudio().play();
+                } catch (e) {
+                    showEnableButton();
+                    return Promise.reject(e);
+                }
+            }
+
+            function showEnableButton() {
+                if (document.getElementById('enable-audio-btn')) return;
+                const btn = document.createElement('button');
+                btn.id = 'enable-audio-btn';
+                btn.textContent = '点击开启音效';
+                Object.assign(btn.style, {
+                    position: 'fixed', right: '14px', bottom: '14px', zIndex: 2147483647,
+                    padding: '10px 14px', borderRadius: '12px', border: '2px solid #000',
+                    background: '#FFD400', color: '#000', fontWeight: '700', cursor: 'pointer'
+                });
+                btn.onclick = () => { unlockViaGesture().then(() => btn.remove()).catch(() => { }); };
+                document.body.appendChild(btn);
+            }
+
+            // —— 1) 页面加载先尝试自动播放（Chromium/桌面常能成功）
+            tryPlay().catch(() => { /* 被拦截就等待手势 */ });
+
+            // —— 2) 一旦子页里有手势就再尝试（移动端常在这里成功）
+            const startOnce = () => { tryPlay().finally(cleanup); };
+            const cleanup = () => {
+                document.removeEventListener('pointerdown', startOnce, true);
+                document.removeEventListener('keydown', startOnce, true);
+            };
+            document.addEventListener('pointerdown', startOnce, true);
+            document.addEventListener('keydown', startOnce, true);
+
+            // —— 3) 父页转发的手势（同源/常见浏览器里也有效）
+            window.addEventListener('message', (e) => {
+                if (e?.data?.type === 'mg:primeAudio') tryPlay();
+            });
+
+            // 退出时停止
+            function stop() { try { audio && (audio.pause(), audio.currentTime = 0); } catch { } }
+            window.addEventListener('pagehide', stop);
+            window.addEventListener('beforeunload', stop);
+
+            // 如果你有 MG_DONE_* 钩子，包一层确保退出前停音
+            ['MG_DONE_SUCCESS', 'MG_DONE_FAILURE'].forEach((name) => {
+                const orig = window[name];
+                if (typeof orig === 'function') {
+                    window[name] = (...args) => { stop(); return orig.apply(window, args); };
+                }
+            });
+        })();
+    </script>
+
+    <!-- 游戏标题和状态 -->
+    <header class="bg-dark/80 p-4 text-center">
+        <h1 class="text-2xl md:text-3xl font-bold text-primary mb-2">密室逃脱</h1>
+        <p class="text-gray-400">寻找线索，破解谜题，逃出房间</p>
+        <div class="flex justify-center mt-3 space-x-4">
+            <div class="flex items-center">
+                <i class="fa fa-key text-accent mr-2"></i>
+                <span>找到的钥匙: <span id="keys-found" class="font-bold text-accent">0</span>/1</span>
+            </div>
+            <div class="flex items-center">
+                <i class="fa fa-lightbulb-o text-secondary mr-2"></i>
+                <span>线索: <span id="clues-found" class="font-bold text-secondary">0</span>/3</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 游戏主区域 -->
+    <main class="container mx-auto p-4 md:p-6 max-w-5xl">
+        <!-- 房间场景 -->
+        <div id="room" class="relative bg-gray-800 rounded-xl overflow-hidden mb-6 h-[500px]">
+            <img src="https://picsum.photos/id/174/1200/800" alt="密室内部场景" class="w-full h-full object-cover opacity-70">
+
+            <!-- 可交互物品 -->
+            <div id="painting" class="room-object absolute top-[10%] left-[20%] w-[200px] h-[250px] border-2 border-gray-300" data-item="painting">
+                <img src="https://picsum.photos/id/96/400/500" alt="墙上的画" class="w-full h-full object-cover">
+            </div>
+
+            <div id="desk" class="room-object absolute top-[50%] left-[60%] w-[220px] h-[180px] bg-brown-800/80 rounded" data-item="desk">
+                <div class="p-2">
+                    <div id="locked-box" class="room-object w-[80px] h-[80px] bg-gray-700 rounded-md mt-2 ml-2 border-2 border-accent/50" data-item="locked-box">
+                        <div class="w-full h-full flex items-center justify-center">
+                            <i class="fa fa-lock text-accent"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="bookshelf" class="room-object absolute top-[30%] left-[70%] w-[150px] h-[280px] bg-brown-700/70" data-item="bookshelf">
+                <div class="p-2 grid grid-cols-3 gap-1 h-full">
+                    <div class="bg-red-700 rounded-sm"></div>
+                    <div class="bg-blue-700 rounded-sm"></div>
+                    <div class="bg-green-700 rounded-sm"></div>
+                    <div class="bg-yellow-700 rounded-sm"></div>
+                    <div class="bg-purple-700 rounded-sm"></div>
+                    <div class="bg-pink-700 rounded-sm"></div>
+                    <div class="bg-indigo-700 rounded-sm"></div>
+                    <div class="bg-teal-700 rounded-sm"></div>
+                    <div class="bg-orange-700 rounded-sm"></div>
+                </div>
+            </div>
+
+            <div id="door" class="room-object absolute top-[25%] right-[5%] w-[100px] h-[300px] bg-gray-700/90 border-4 border-gray-600" data-item="door">
+                <div class="w-full h-full flex flex-col items-center justify-center">
+                    <div id="door-lock" class="w-[40px] h-[60px] bg-gray-600 rounded-md mt-4" data-item="door-lock">
+                        <div class="w-full h-full flex items-center justify-center">
+                            <i class="fa fa-lock text-2xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="clock" class="room-object absolute top-[15%] right-[30%] w-[120px] h-[120px] rounded-full bg-gray-700/80 border-4 border-gray-600" data-item="clock">
+                <div class="w-full h-full flex items-center justify-center">
+                    <span id="clock-time" class="text-xl font-bold">17:45</span>
+                </div>
+            </div>
+
+            <!-- 物品提示点 -->
+            <div class="absolute top-[10%] left-[20%] w-[200px] h-[250px] pointer-events-none">
+                <div class="hidden" id="painting-highlight">
+                    <i class="fa fa-hand-pointer-o absolute -top-6 -right-6 text-2xl text-primary item-highlight"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- 玩家物品栏 -->
+        <div class="puzzle-item">
+            <h2 class="text-xl font-bold mb-3 flex items-center">
+                <i class="fa fa-briefcase text-primary mr-2"></i> 物品栏
+            </h2>
+            <div id="inventory" class="flex flex-wrap gap-3">
+                <div class="text-gray-500 italic">你的物品将显示在这里...</div>
+            </div>
+        </div>
+
+        <!-- 笔记/线索区 -->
+        <div class="puzzle-item">
+            <h2 class="text-xl font-bold mb-3 flex items-center">
+                <i class="fa fa-book text-secondary mr-2"></i> 笔记
+            </h2>
+            <div id="notes" class="space-y-3 text-gray-300">
+                <div class="text-gray-500 italic">你发现的线索将记录在这里...</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 谜题模态框 -->
+    <div id="painting-modal" class="modal-backdrop">
+        <div class="modal-content p-5">
+            <h3 class="text-xl font-bold text-primary mb-3">墙上的画</h3>
+            <div class="mb-4">
+                <img src="https://picsum.photos/id/96/600/700" alt="一幅风景画" class="w-full h-auto rounded-md">
+                <p class="clue">画框似乎有些松动...</p>
+            </div>
+            <div class="flex justify-end">
+                <button class="close-modal bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded mr-2">查看</button>
+                <button id="remove-painting" class="bg-primary hover:bg-primary/80 px-4 py-2 rounded">取下画框</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="safe-modal" class="modal-backdrop">
+        <div class="modal-content p-5">
+            <h3 class="text-xl font-bold text-accent mb-3">带密码的盒子</h3>
+            <p class="mb-4">这是一个需要4位数字密码才能打开的盒子</p>
+            <div class="mb-4">
+                <input type="text" id="safe-code" maxlength="4" placeholder="输入4位数字密码"
+                       class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-center text-xl">
+                <p class="clue">提示: 时间可能是关键</p>
+            </div>
+            <div class="flex justify-end">
+                <button class="close-modal bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded mr-2">关闭</button>
+                <button id="open-safe" class="bg-accent hover:bg-accent/80 px-4 py-2 rounded">打开</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="bookshelf-modal" class="modal-backdrop">
+        <div class="modal-content p-5">
+            <h3 class="text-xl font-bold text-secondary mb-3">书架</h3>
+            <p class="mb-4">书架上排列着不同颜色的书，似乎可以按动</p>
+            <div class="grid grid-cols-3 gap-2 mb-4">
+                <div class="color-book bg-red-700 w-full h-10 rounded-sm cursor-pointer" data-color="red"></div>
+                <div class="color-book bg-blue-700 w-full h-10 rounded-sm cursor-pointer" data-color="blue"></div>
+                <div class="color-book bg-green-700 w-full h-10 rounded-sm cursor-pointer" data-color="green"></div>
+                <div class="color-book bg-yellow-700 w-full h-10 rounded-sm cursor-pointer" data-color="yellow"></div>
+                <div class="color-book bg-purple-700 w-full h-10 rounded-sm cursor-pointer" data-color="purple"></div>
+                <div class="color-book bg-pink-700 w-full h-10 rounded-sm cursor-pointer" data-color="pink"></div>
+                <div class="color-book bg-indigo-700 w-full h-10 rounded-sm cursor-pointer" data-color="indigo"></div>
+                <div class="color-book bg-teal-700 w-full h-10 rounded-sm cursor-pointer" data-color="teal"></div>
+                <div class="color-book bg-orange-700 w-full h-10 rounded-sm cursor-pointer" data-color="orange"></div>
+            </div>
+            <p id="color-sequence" class="text-center mb-2 h-6"></p>
+            <p class="clue">提示: 尝试按特定顺序按下不同颜色的书</p>
+            <div class="flex justify-end">
+                <button class="close-modal bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="door-lock-modal" class="modal-backdrop">
+        <div class="modal-content p-5">
+            <h3 class="text-xl font-bold mb-3">门锁</h3>
+            <p id="door-lock-message" class="mb-4">门是锁着的，你需要找到钥匙才能打开</p>
+            <div id="use-key-container" class="hidden mb-4">
+                <button id="use-key" class="w-full bg-accent hover:bg-accent/80 px-4 py-2 rounded flex items-center justify-center">
+                    <i class="fa fa-key mr-2"></i> 使用钥匙开门
+                </button>
+            </div>
+            <div class="flex justify-end">
+                <button class="close-modal bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 胜利模态框 -->
+    <div id="success-modal" class="modal-backdrop">
+        <div class="modal-content p-6 text-center">
+            <div class="text-6xl text-accent mb-4">
+                <i class="fa fa-trophy"></i>
+            </div>
+            <h2 class="text-2xl font-bold mb-3">恭喜你成功逃脱！</h2>
+            <p class="mb-6">你成功解开了所有谜题，逃出了密室！</p>
+            <button id="play-again" class="bg-primary hover:bg-primary/80 text-white font-bold py-3 px-6 rounded-lg">
+                再玩一次
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 游戏状态
+        const gameState = {
+            inventory: [],
+            clues: [],
+            keysFound: 0,
+            paintingRemoved: false,
+            safeOpened: false,
+            bookshelfSolved: false,
+            correctColorSequence: ['red', 'blue', 'green', 'yellow'],
+            currentColorSequence: []
+        };
+
+        // DOM元素
+        const elements = {
+            // 物品和谜题元素
+            painting: document.getElementById('painting'),
+            desk: document.getElementById('desk'),
+            lockedBox: document.getElementById('locked-box'),
+            bookshelf: document.getElementById('bookshelf'),
+            door: document.getElementById('door'),
+            doorLock: document.getElementById('door-lock'),
+            clock: document.getElementById('clock'),
+            paintingHighlight: document.getElementById('painting-highlight'),
+
+            // 状态显示
+            keysFoundElement: document.getElementById('keys-found'),
+            cluesFoundElement: document.getElementById('clues-found'),
+            inventory: document.getElementById('inventory'),
+            notes: document.getElementById('notes'),
+
+            // 模态框
+            paintingModal: document.getElementById('painting-modal'),
+            safeModal: document.getElementById('safe-modal'),
+            bookshelfModal: document.getElementById('bookshelf-modal'),
+            doorLockModal: document.getElementById('door-lock-modal'),
+            successModal: document.getElementById('success-modal'),
+
+            // 模态框内容
+            safeCode: document.getElementById('safe-code'),
+            colorSequence: document.getElementById('color-sequence'),
+            doorLockMessage: document.getElementById('door-lock-message'),
+            useKeyContainer: document.getElementById('use-key-container'),
+
+            // 按钮
+            removePainting: document.getElementById('remove-painting'),
+            openSafe: document.getElementById('open-safe'),
+            useKey: document.getElementById('use-key'),
+            playAgain: document.getElementById('play-again'),
+            closeModals: document.querySelectorAll('.close-modal')
+        };
+
+        // 初始化游戏
+        function initGame() {
+            // 重置游戏状态
+            gameState.inventory = [];
+            gameState.clues = [];
+            gameState.keysFound = 0;
+            gameState.paintingRemoved = false;
+            gameState.safeOpened = false;
+            gameState.bookshelfSolved = false;
+            gameState.currentColorSequence = [];
+
+            // 更新UI
+            updateInventory();
+            updateNotes();
+            elements.keysFoundElement.textContent = '0';
+            elements.cluesFoundElement.textContent = '0';
+            elements.painting.style.display = 'block';
+            elements.lockedBox.style.display = 'block';
+            elements.colorSequence.textContent = '';
+            elements.doorLockMessage.textContent = '门是锁着的，你需要找到钥匙才能打开';
+            elements.useKeyContainer.classList.add('hidden');
+
+            // 隐藏所有模态框
+            hideAllModals();
+
+            // 显示初始提示
+            setTimeout(() => {
+                elements.paintingHighlight.classList.remove('hidden');
+            }, 1000);
+        }
+
+        // 显示模态框
+        function showModal(modal) {
+            modal.classList.add('active');
+        }
+
+        // 隐藏模态框
+        function hideModal(modal) {
+            modal.classList.remove('active');
+        }
+
+        // 隐藏所有模态框
+        function hideAllModals() {
+            document.querySelectorAll('.modal-backdrop').forEach(modal => {
+                modal.classList.remove('active');
+            });
+        }
+
+        // 添加物品到 inventory
+        function addToInventory(itemName, iconClass) {
+            // 检查物品是否已存在
+            if (gameState.inventory.some(item => item.name === itemName)) {
+                return;
+            }
+
+            const item = {
+                name: itemName,
+                icon: iconClass
+            };
+
+            gameState.inventory.push(item);
+            updateInventory();
+
+            // 如果是钥匙，更新计数
+            if (itemName === '钥匙') {
+                gameState.keysFound++;
+                elements.keysFoundElement.textContent = gameState.keysFound;
+                elements.useKeyContainer.classList.remove('hidden');
+            }
+        }
+
+        // 更新物品栏显示
+        function updateInventory() {
+            if (gameState.inventory.length === 0) {
+                elements.inventory.innerHTML = '<div class="text-gray-500 italic">你的物品将显示在这里...</div>';
+                return;
+            }
+
+            elements.inventory.innerHTML = '';
+            gameState.inventory.forEach(item => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'bg-gray-800 p-2 rounded flex items-center';
+                itemElement.innerHTML = `<i class="fa ${item.icon} text-accent mr-2"></i> ${item.name}`;
+                elements.inventory.appendChild(itemElement);
+            });
+        }
+
+        // 添加线索到笔记
+        function addClue(text) {
+            // 检查线索是否已存在
+            if (gameState.clues.includes(text)) {
+                return;
+            }
+
+            gameState.clues.push(text);
+            updateNotes();
+            elements.cluesFoundElement.textContent = gameState.clues.length;
+        }
+
+        // 更新笔记显示
+        function updateNotes() {
+            if (gameState.clues.length === 0) {
+                elements.notes.innerHTML = '<div class="text-gray-500 italic">你发现的线索将记录在这里...</div>';
+                return;
+            }
+
+            elements.notes.innerHTML = '';
+            gameState.clues.forEach((clue, index) => {
+                const clueElement = document.createElement('div');
+                clueElement.className = 'fade-in';
+                clueElement.innerHTML = `<p><span class="text-secondary font-bold">线索 ${index + 1}:</span> ${clue}</p>`;
+                elements.notes.appendChild(clueElement);
+            });
+        }
+
+        // 检查密码是否正确
+        function checkSafeCode() {
+            const code = elements.safeCode.value;
+            // 正确密码是时钟显示的时间17:45转换的1745
+            if (code === '1745') {
+                // 打开盒子，添加钥匙
+                addToInventory('钥匙', 'fa-key');
+                addClue('盒子里有一把钥匙，也许可以用来开门。');
+                gameState.safeOpened = true;
+                elements.lockedBox.innerHTML = '<div class="w-full h-full flex items-center justify-center"><i class="fa fa-unlock text-accent"></i></div>';
+                hideModal(elements.safeModal);
+
+                // 显示成功消息
+                alert('恭喜！你打开了盒子，获得了一把钥匙！');
+                return true;
+            } else {
+                alert('密码不正确，请再试一次。');
+                return false;
+            }
+        }
+
+        // 检查颜色序列是否正确
+        function checkColorSequence() {
+            if (gameState.currentColorSequence.length !== gameState.correctColorSequence.length) {
+                return false;
+            }
+
+            for (let i = 0; i < gameState.currentColorSequence.length; i++) {
+                if (gameState.currentColorSequence[i] !== gameState.correctColorSequence[i]) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // 处理颜色书点击
+        function handleColorBookClick(color) {
+            gameState.currentColorSequence.push(color);
+
+            // 显示当前序列
+            const colorMap = {
+                'red': '🔴',
+                'blue': '🔵',
+                'green': '🟢',
+                'yellow': '🟡',
+                'purple': '🟣',
+                'pink': '🔘',
+                'indigo': '🔷',
+                'teal': '🟠',
+                'orange': '🟠'
+            };
+
+            elements.colorSequence.textContent = gameState.currentColorSequence.map(c => colorMap[c]).join(' ');
+
+            // 检查是否达到长度限制
+            if (gameState.currentColorSequence.length > 4) {
+                gameState.currentColorSequence = [];
+                elements.colorSequence.textContent = '序列太长，已重置';
+                setTimeout(() => {
+                    elements.colorSequence.textContent = '';
+                }, 1500);
+                return;
+            }
+
+            // 检查是否正确
+            if (checkColorSequence()) {
+                gameState.bookshelfSolved = true;
+                addClue('书架后面有一张纸条，上面写着："记住时间，它是关键"。');
+                alert('恭喜！你解开了书架谜题，发现了一条线索！');
+                hideModal(elements.bookshelfModal);
+            }
+        }
+
+        // 绑定事件
+        function bindEvents() {
+            // 物品点击事件
+            elements.painting.addEventListener('click', () => {
+                showModal(elements.paintingModal);
+            });
+
+            elements.lockedBox.addEventListener('click', () => {
+                if (gameState.safeOpened) {
+                    alert('盒子已经打开了，里面的钥匙已经被拿走。');
+                } else {
+                    showModal(elements.safeModal);
+                }
+            });
+
+            elements.bookshelf.addEventListener('click', () => {
+                showModal(elements.bookshelfModal);
+            });
+
+            elements.doorLock.addEventListener('click', () => {
+                showModal(elements.doorLockModal);
+            });
+
+            // 颜色书点击事件
+            document.querySelectorAll('.color-book').forEach(book => {
+                book.addEventListener('click', () => {
+                    if (!gameState.bookshelfSolved) {
+                        const color = book.getAttribute('data-color');
+                        handleColorBookClick(color);
+                    } else {
+                        alert('你已经解开了这个谜题。');
+                    }
+                });
+            });
+
+            // 按钮事件
+            elements.removePainting.addEventListener('click', () => {
+                elements.painting.style.display = 'none';
+                gameState.paintingRemoved = true;
+                addClue('画后面有一个颜色序列：红、蓝、绿、黄。');
+                hideModal(elements.paintingModal);
+                elements.paintingHighlight.classList.add('hidden');
+            });
+
+            elements.openSafe.addEventListener('click', checkSafeCode);
+
+            elements.useKey.addEventListener('click', () => {
+                if (gameState.keysFound > 0) {
+                    hideModal(elements.doorLockModal);
+                    // 直接通关：不再显示“胜利模态框”，直接通知父页成功
+                    if (window.MG_DONE_SUCCESS) {
+                        setTimeout(() => window.MG_DONE_SUCCESS(), 300);
+                    } else {
+                        // 如果是单独打开的页面（没有父页），保留一个简短提示后自动刷新
+                        alert('恭喜！你成功逃脱！');
+                        // 可选：不想刷新就删掉下一行
+                        setTimeout(() => location.reload(), 600);
+                    }
+                }
+            });
+
+
+            elements.playAgain.addEventListener('click', () => {
+                hideModal(elements.successModal);
+                initGame();
+            });
+
+            // 关闭模态框按钮
+            elements.closeModals.forEach(button => {
+                button.addEventListener('click', () => {
+                    hideAllModals();
+                });
+            });
+
+            // 点击模态框背景关闭
+            document.querySelectorAll('.modal-backdrop').forEach(modal => {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        hideModal(modal);
+                    }
+                });
+            });
+
+            // 键盘事件 - ESC关闭模态框
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    hideAllModals();
+                }
+            });
+        }
+
+        // 启动游戏
+        window.addEventListener('load', () => {
+            initGame();
+            bindEvents();
+        });
+
+    </script>
+    <script>
+        /**
+         * 仅实现：
+         * 1) ?allowSkip=1 时显示“跳过（视为成功）”按钮
+         * 2) 与父页通信 { type:'mg:done', id:'jimixiang', result:'success'|'failure'|'quit' }
+         * 注意：跳过 = success；其余不改
+         */
+        (() => {
+            const q = new URLSearchParams(location.search);
+            const ALLOW_SKIP = q.get('allowSkip') === '1';
+            const PARENT_ORIGIN = q.get('parentOrigin') || '*';
+            const ID = 'jimixiang';
+
+            let SENT = false;
+            function notify(result) {
+                if (SENT) return;
+                SENT = true;
+                try {
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({ type: 'mg:done', id: ID, result }, PARENT_ORIGIN);
+                    }
+                } catch (_) { }
+            }
+
+            // 暴露可选钩子（页面内部若有判定也可调用）
+            window.MG_DONE_SUCCESS = () => notify('success');
+            window.MG_DONE_FAILURE = () => notify('failure');
+
+            // —— 高对比度“跳过”按钮（允许时才显示）——
+            if (ALLOW_SKIP) {
+                const btn = document.createElement('button');
+                btn.textContent = '跳过（视为成功）';
+
+                // 强对比+描边+双阴影，尽量在任何底图上都清晰
+                Object.assign(btn.style, {
+                    position: 'fixed',
+                    top: '14px',
+                    right: '14px',
+                    zIndex: '2147483647',        // 置顶
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    border: '2px solid #000',    // 黑色描边
+                    background: '#FFD400',       // 亮黄色（对深/浅底都显眼）
+                    color: '#000',               // 黑字
+                    fontSize: '15px',
+                    fontWeight: '700',
+                    letterSpacing: '0.5px',
+                    boxShadow: '0 0 0 3px rgba(255,255,255,0.95), 0 3px 12px rgba(0,0,0,0.45)', // 白色外环 + 阴影
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    transition: 'transform .08s ease, box-shadow .08s ease'
+                });
+
+                // 悬停/按下的微交互，保持可见性
+                btn.addEventListener('mouseenter', () => {
+                    btn.style.transform = 'scale(1.05)';
+                    btn.style.boxShadow = '0 0 0 3px rgba(255,255,255,1), 0 6px 18px rgba(0,0,0,0.5)';
+                });
+                btn.addEventListener('mouseleave', () => {
+                    btn.style.transform = 'scale(1)';
+                    btn.style.boxShadow = '0 0 0 3px rgba(255,255,255,0.95), 0 3px 12px rgba(0,0,0,0.45)';
+                });
+                btn.addEventListener('mousedown', () => (btn.style.transform = 'scale(0.98)'));
+                btn.addEventListener('mouseup', () => (btn.style.transform = 'scale(1.05)'));
+
+                // 键盘可见焦点（再加一层白环）
+                btn.addEventListener('focus', () => {
+                    btn.style.boxShadow = '0 0 0 5px rgba(255,255,255,1), 0 6px 18px rgba(0,0,0,0.55)';
+                    btn.style.outline = 'none';
+                });
+                btn.addEventListener('blur', () => {
+                    btn.style.boxShadow = '0 0 0 3px rgba(255,255,255,0.95), 0 3px 12px rgba(0,0,0,0.45)';
+                });
+
+                btn.addEventListener('click', () => notify('success')); // 跳过=成功
+                document.body.appendChild(btn);
+            }
+        })();
+    </script>
+
+
+</body>
+</html>

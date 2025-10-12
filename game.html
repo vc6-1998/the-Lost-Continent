@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Game Page</title>
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="css/game.css">
+    <link rel="stylesheet" type="text/css" href="css/backpack.css">
+    <!-- <link rel="stylesheet" type="text/css" href="css/default.css"> -->
+    <link rel="stylesheet" type="text/css" href="css/story.css">
+    <link rel="stylesheet" type="text/css" href="css/backpack.css">
+    <link rel="stylesheet" type="text/css" href="css/effect.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+
+    <script src="js/app/core/achievements.js"></script>
+
+    <!-- 1) 第三方 -->
+    <script src="js/vendor/jquery-3.6.0.min.js"></script>
+    <script src="js/vendor/bootstrap.min.js"></script>
+
+    <!-- 2) 系统/存档 -->
+    <script src="js/app/systems/save.js"></script>
+    <script src="js/app/systems/cUser.js"></script>
+    <script src="js/app/systems/save_system.js"></script>
+
+
+    <script src="js/app/core/audio_manager.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.GameAudio && typeof GameAudio.init === 'function') GameAudio.init();
+        });
+    </script>
+
+
+    <!-- 3) 引擎层 -->
+    <script src="js/engine/state.js"></script>
+    <script src="js/engine/condition.js"></script>
+    <script src="js/engine/helpers/normalize.js"></script>
+    <script src="js/engine/actions/ActionRegistry.js"></script>
+    <script src="js/engine/actions/builtins.js"></script>
+
+    <!-- 4) UI（先通用组件，再菜单与加载页脚本） -->
+    <script src="js/app/ui/save_ui.js"></script>
+    <script src="js/app/ui/notification.js"></script>
+    <script src="js/app/ui/effect.js"></script>
+    <script src="js/app/ui/dialogue.js"></script>
+    <script src="js/app/ui/CG.js"></script>
+    <script src="js/app/ui/choice.js"></script>
+    <script src="js/app/ui/backpack.js"></script>
+    <script src="js/app/ui/status.js"></script>
+    <script src="js/app/ui/minigame.js"></script>
+
+    <!-- 5) 核心控制器 -->
+    <script src="js/app/core/story_controller.js"></script>
+    <script src="js/app/core/map_manager.js"></script>
+
+
+    <!-- 6) 数据 -->
+    <script src="js/app/data/map.js"></script>
+    <script src="js/app/data/story.js"></script>
+
+    <script>
+        // 给旧变量名补个别名，二者取其一
+        window.mainStoryElements = window.mainStoryElements || window.storyData;
+    </script>
+
+    
+
+
+
+
+    <!-- 7) （可选）规范化导出工具 -->
+    <!-- <script src="js/engine/tools/normalize_content.js"></script> -->
+
+    <style>
+        #controls-tip[hidden] {
+            display: none !important;
+            pointer-events: none !important;
+        }
+
+        #controls-tip {
+            position: fixed;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            background: rgba(0,0,0,.5);
+            z-index: 1500; /* 高于对话/选项，但低于 minigame 覆盖层 */
+            pointer-events: auto; /* 可点击关闭按钮 */
+        }
+
+            #controls-tip .ct-card {
+                width: min(92vw, 520px);
+                background: #111;
+                color: #fff;
+                border-radius: 12px;
+                padding: 20px;
+                box-shadow: 0 8px 32px rgba(0,0,0,.35);
+                font-size: 16px;
+                line-height: 1.6;
+            }
+
+            #controls-tip h3 {
+                margin: 0 0 8px;
+                font-size: 18px;
+            }
+
+            #controls-tip ul {
+                margin: 8px 0 16px;
+                padding-left: 20px;
+            }
+
+            #controls-tip .ct-btn {
+                padding: 8px 14px;
+                border-radius: 8px;
+                border: none;
+                cursor: pointer;
+                font-size: 14px;
+            }
+
+            #controls-tip .ct-hint {
+                opacity: .7;
+                font-size: 12px;
+                margin-top: 8px;
+            }
+    </style>
+</head>
+
+
+
+<body>
+    <div id="pauseOverlay" aria-hidden="true">
+        <div id="pausePanel" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+            <h2 id="pauseTitle">暂停</h2>
+
+            <div class="p-row">
+                <button id="btnSave" class="p-btn">保存 (S)</button>
+                <button id="btnLoad" class="p-btn">读取 (L)</button>
+                <button id="btnHome" class="p-btn">返回主菜单 (M)</button>
+                <button id="btnResume" class="p-btn">继续游戏 (Esc)</button>
+            </div>
+
+            <div id="slotPicker">
+                <div style="margin-top:6px;">选择槽位：</div>
+                <div class="p-row">
+                    <button class="p-btn" data-slot="0">槽位 1</button>
+                    <button class="p-btn" data-slot="1">槽位 2</button>
+                    <button class="p-btn" data-slot="2">槽位 3</button>
+                    <button class="p-btn" id="btnCancelSlot">取消</button>
+                </div>
+            </div>
+            <div id="saveMsg"></div>
+        </div>
+    </div>
+
+    <div class="background" hidden>
+        <!--CG -->
+        <div align="center" class="animated flipIn" id="animate"></div>
+    </div>
+    <div class="dialogue-container" hidden>
+        <!--对话 -->
+        <img id="character-image" alt="角色" class="character">
+        <div class="dialogue-box" id="dialogue-box">
+            <p id="dialogue-text"></p>
+        </div>
+    </div>
+
+    <div id="choice-container" class="choice-container" hidden>
+        <div id="choice-prompt" class="choice-prompt"></div>
+        <div id="choice-options" class="choice-options">
+            <!-- Buttons will be generated here by JavaScript -->
+        </div>
+    </div>
+
+    <div id="effect-overlay" class="effect-overlay"></div>
+
+    <div id="item-notification" class="item-notification-box">
+        <div id="item-notification-icon" class="item-icon"></div>
+        <p id="item-notification-text" class="item-text"></p>
+    </div>
+
+    <div class="window" hidden>
+        <!--地图 -->
+        <div><canvas id="gameCanvas" width="770" height="570"></canvas></div>
+
+        <div class="bag" id="bag" hidden>
+            <div class="bag-header">
+                <div class="bag-title">回响之匣</div>
+                <button class="close-btn">关闭</button>
+            </div>
+
+            <div class="bag-content">
+                <div class="items-section">
+                    <div class="items-grid">
+                    </div>
+                </div>
+
+                <div class="details-section">
+                    <div class="item-details">
+                        <div class="detail-image" id="detailImage"></div>
+                        <div class="detail-name" id="detailName"></div>
+                        <div class="detail-type" id="detailType"></div>
+                        <div class="detail-description" id="detailDescription"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="status-display">
+        <div class="status-bar-container">
+            <span class="status-label">美德</span>
+            <div class="status-bar">
+                <div id="virtue-bar-fill" class="status-bar-fill"></div>
+                <span id="virtue-value" class="status-value">+0</span>
+            </div>
+        </div>
+        <!-- 历史条 -->
+        <div class="status-bar-container">
+            <span class="status-label">历史</span>
+            <div class="status-bar">
+                <div id="history-bar-fill" class="status-bar-fill"></div>
+                <span id="history-value" class="status-value">+0</span>
+            </div>
+        </div>
+    </div>
+    <div id="minigame-overlay" class="minigame-overlay" hidden>
+        <div id="minigame-window" class="minigame-window">
+            <!-- 游戏提示文本，所有游戏共用 -->
+            <div id="minigame-prompt" class="minigame-prompt"></div>
+
+            <!-- 游戏类型 1 & 2: 网格容器 (用于符文序列和声波探测) -->
+            <div id="minigame-grid" class="minigame-grid">
+                <!-- 按钮将由 JS 动态生成 -->
+            </div>
+
+            <!-- 游戏类型 3: 选项容器 (用于说服挑战) -->
+            <div id="minigame-options" class="minigame-options">
+                <!-- 按钮将由 JS 动态生成 -->
+            </div>
+
+            <!-- 通用倒计时条 -->
+            <div id="minigame-timer-container" class="minigame-timer">
+                <div id="minigame-timer-bar" class="minigame-timer-bar"></div>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="credits-overlay" class="credits-overlay" hidden>
+    <div id="credits-content" class="credits-content">
+        <!-- Ending text will be dynamically inserted here by the action -->
+    </div>
+</div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+
+
+            const myBackpack = new Backpack(SaveSystem);//背包
+
+            const cgBackground = document.querySelector('.background');
+            const animateElement = document.getElementById('animate');
+            const dialogueContainer = document.querySelector('.dialogue-container');
+            const characterImage = document.getElementById('character-image');
+            const dialogueText = document.getElementById('dialogue-text');
+
+            // 实例化管理器
+            // 【注意】CGManager 可能需要微调以使用 'animated1' 和 'flipIn1' 类
+            const dialogueManager = new DialogueManager(dialogueContainer, characterImage, dialogueText);
+            const cgManager = new CGManager(cgBackground, animateElement);
+
+            const choiceContainer = document.getElementById('choice-container');
+            const choicePrompt = document.getElementById('choice-prompt');
+            const choiceOptions = document.getElementById('choice-options');
+            const choiceManager = new ChoiceManager(choiceContainer, choicePrompt, choiceOptions);
+            /** 只在“选择交互”区域的按钮上播点击音 */
+            (function () {
+                const box = document.getElementById('choice-options'); // 选项按钮容器
+                if (!box) return;
+
+                // 节流，避免同一选择触发两次
+                let lastStamp = 0;
+
+                // 鼠标或触控都允许；如果只想鼠标，改成 pointerdown 并判断 e.pointerType==='mouse'
+                box.addEventListener('pointerdown', (e) => {
+                    if (!window.GameAudio) return;
+                    if (!e.isTrusted) return;
+
+                    // 只对真正的选项按钮触发（取最近的 <button>）
+                    const btn = e.target && e.target.closest('button');
+                    if (!btn || !box.contains(btn)) return;
+
+                    const now = performance.now();
+                    if (now - lastStamp < 120) return; // 节流
+                    lastStamp = now;
+
+                    GameAudio.playSE('click', { volume: 0.8, throttle: 120 });
+                }, { capture: true });
+            })();
+
+            const effectOverlay = document.getElementById('effect-overlay');
+            const effectManager = new EffectManager(effectOverlay);
+
+            const miniGameManager = new MiniGameManager();
+            window.MiniGameManager = miniGameManager;
+            // Pass it to the StoryController
+            const storyController = new StoryController(
+                window.storyData,
+                dialogueManager,
+                cgManager,
+                choiceManager,
+                effectManager,
+                myBackpack,
+                miniGameManager
+            );
+            console.log('[check] ctx.ui.minigame wired?',
+                !!storyController._buildCtx?.().ui?.minigame);
+
+
+            window.__story = storyController;
+            try {
+                // 优先：读取完整存档（5.2 在 load_page.js 中写入的）
+                const pendingRaw = sessionStorage.getItem('PENDING_SAVE');
+                if (pendingRaw) {
+                    const save = JSON.parse(pendingRaw);
+                    // —— 读档：恢复音频（BGM/音量/静音/ducking）——
+                    if (save?.audio && window.GameAudio) {
+                        // 静音与分组音量
+                        GameAudio.setVolume({
+                            master: Number.isFinite(save.audio.master) ? save.audio.master : 1,
+                            bgm: Number.isFinite(save.audio.bgmVol) ? save.audio.bgmVol : 0.65,
+                            se: Number.isFinite(save.audio.seVol) ? save.audio.seVol : 0.9
+                        });
+                        GameAudio.mute(!!save.audio.muted);
+
+                        // 恢复当时的 BGM（不淡入；想柔和可把 fade:0 改成 200~300）
+                        if (save.audio.bgm) {
+                            GameAudio.setBGM(save.audio.bgm, { loop: true, fade: 0, volume: save.audio.bgmVol ?? 0.65 });
+                        } else {
+                            GameAudio.stopBGM({ fade: 0 });
+                        }
+
+                        // 若存档时处于小游戏压低状态，读档时先恢复为正常音量
+                        if (typeof save.audio.ducking === 'number' && save.audio.ducking !== 1) {
+                            GameAudio.unduck();
+                        }
+                    }
+                    (function ensureBgmAfterGesture_Pending() {
+                        try {
+                            const el = GameAudio?._state?.bgmEl;
+                            const blocked = !el || el.paused || el.currentTime === 0;
+                            if (!blocked) return; // 已经在播就不处理
+                            const tryPlay = () => GameAudio?.setBGM(save.audio?.bgm, { loop: true, fade: 0, volume: save.audio?.bgmVol ?? 0.65 });
+                            const h = () => {
+                                removeEventListener('pointerdown', h, true);
+                                removeEventListener('keydown', h, true);
+                                removeEventListener('focusin', h, true);
+                                tryPlay();
+                            };
+                            addEventListener('pointerdown', h, { capture: true, once: true });
+                            addEventListener('keydown', h, { capture: true, once: true });
+                            addEventListener('focusin', h, { capture: true, once: true });
+                        } catch { }
+                    })(); (function ensureBgmAfterGesture_Pending() {
+                        try {
+                            const el = GameAudio?._state?.bgmEl;
+                            const blocked = !el || el.paused || el.currentTime === 0;
+                            if (!blocked) return; // 已经在播就不处理
+                            const tryPlay = () => GameAudio?.setBGM(save.audio?.bgm, { loop: true, fade: 0, volume: save.audio?.bgmVol ?? 0.65 });
+                            const h = () => {
+                                removeEventListener('pointerdown', h, true);
+                                removeEventListener('keydown', h, true);
+                                removeEventListener('focusin', h, true);
+                                tryPlay();
+                            };
+                            addEventListener('pointerdown', h, { capture: true, once: true });
+                            addEventListener('keydown', h, { capture: true, once: true });
+                            addEventListener('focusin', h, { capture: true, once: true });
+                        } catch { }
+                    })();
+                    // 1) 取剧情索引（没有就回落到 0）
+                    const nodeIndex =
+                        (save && save.story && typeof save.story.nodeIndex === 'number')
+                            ? save.story.nodeIndex
+                            : 0;
+
+                    // 2) 填充最小 currentSaveData（兼容旧代码 & 后续使用）
+                    window.currentSaveData = window.currentSaveData || {};
+                    window.currentSaveData.inventory = Array.isArray(save?.inventory) ? save.inventory.slice() : [];
+                    window.currentSaveData.virtue = (typeof save?.virtue === 'number') ? save.virtue : 0;
+                    window.currentSaveData.history = (typeof save?.history === 'number') ? save.history : 0;
+                    window.currentSaveData.flags = Array.isArray(save?.flags) ? save.flags.slice() : [];
+
+                    // 3) 将全局状态导入到 GameState（UI 刷新会在 6.1 再做）
+                    if (window.GameState && typeof GameState.importState === 'function') {
+                        GameState.importState({
+                            inventory: window.currentSaveData.inventory,
+                            virtue: window.currentSaveData.virtue,
+                            history: window.currentSaveData.history,
+                            flags: window.currentSaveData.flags,
+                            vars: (save && typeof save.vars === 'object') ? save.vars : {}
+                        });
+                    }
+                    // 3.1) UI 立刻刷新（本步骤新增）
+                    if (window.StatusDisplay && typeof StatusDisplay.refreshFromState === 'function') {
+                        StatusDisplay.refreshFromState();
+                    }
+                    if (typeof myBackpack !== 'undefined' && myBackpack && typeof myBackpack.refreshFromState === 'function') {
+                        myBackpack.refreshFromState();
+                    }
+
+                    // —— 读档立即恢复 CG（若 save.cg 存在；否则回退 currentSaveData.cg）
+                    try {
+                        if (save && save.cg && typeof cgManager.importSnapshot === 'function') {
+                            await cgManager.importSnapshot(save.cg);
+                            // 同步到 currentSaveData，方便后续 UI/再保存
+                            window.currentSaveData.cg = save.cg;
+                        } else if (window.currentSaveData?.cg && typeof cgManager.importSnapshot === 'function') {
+                            await cgManager.importSnapshot(window.currentSaveData.cg);
+                        }
+                    } catch (e) {
+                        console.warn('[startup] restore CG from save failed:', e);
+                    }
+                    // 【兜底】本次存档没有带 cg，就回溯 nodeIndex 之前的最后一条 CG 指令
+                    // 【兜底】仅当：没有 save.cg，且不是地图场景，且下一个节点也不是 cg/map 时，才回溯上一张
+                    const hasMap = Array.isArray(save?.maps?.stack) && save.maps.stack.length > 0;
+                    const nextEl = Array.isArray(window.storyData) ? window.storyData[nodeIndex] : null;
+                    const nextIsCG = !!(nextEl && nextEl.type === 'cg');
+                    const nextIsMap = !!(nextEl && (nextEl.type === 'map' || nextEl.type === 'gotoMap'));
+
+                    if ((!save || !save.cg) && !window.currentSaveData?.cg && !hasMap && !nextIsCG && !nextIsMap) {
+
+                        try {
+                            const idx = (typeof nodeIndex === 'number') ? nodeIndex : 0;
+                            let last = null;
+                            if (idx > 0 && Array.isArray(window.storyData)) {
+                                for (let i = idx - 1; i >= 0; i--) {
+                                    const el = window.storyData[i];
+                                    if (el && el.type === 'cg' && el.url) {
+                                        last = { visible: true, image: { src: el.url }, text: el.text || '' };
+                                        break;
+                                    }
+                                }
+                            }
+                            if (last && typeof cgManager.importSnapshot === 'function') {
+                                await cgManager.importSnapshot(last);
+                                // 同步到 currentSaveData，方便后续保存
+                                window.currentSaveData = window.currentSaveData || {};
+                                window.currentSaveData.cg = last;
+                            }
+                        } catch (e) {
+                            console.warn('[startup] fallback apply last CG failed:', e);
+                        }
+                    }
+
+                    // 4) 设定剧情游标（地图栈的恢复我们放到 6.3）
+                    if (typeof storyController.importSnapshot === 'function') {
+                        storyController.importSnapshot(save); // ← 关键改动：把 maps.stack 带进去
+                    }
+                    storyController.startFrom(nodeIndex);
+
+
+                    // 5) 清理会话标记，避免重复恢复
+                    sessionStorage.removeItem('PENDING_SAVE');
+                    sessionStorage.removeItem('resume');
+                    sessionStorage.removeItem('currentSaveData');
+                } else {
+                    // 次优先：兼容老的 resume/currentSaveData 机制
+                    const resume = sessionStorage.getItem('resume');
+                    const saved = sessionStorage.getItem('currentSaveData');
+                    if (resume === '1' && saved) {
+                        const data = JSON.parse(saved);
+                        // —— 兼容老机制：若有 currentSaveData.cg，先恢复背景
+                        // —— 旧路径：若旧存档对象里也带了 audio，则同样恢复 —— 
+                        if (data?.audio && window.GameAudio) {
+                            GameAudio.setVolume({
+                                master: Number.isFinite(data.audio.master) ? data.audio.master : 1,
+                                bgm: Number.isFinite(data.audio.bgmVol) ? data.audio.bgmVol : 0.65,
+                                se: Number.isFinite(data.audio.seVol) ? data.audio.seVol : 0.9
+                            });
+                            GameAudio.mute(!!data.audio.muted);
+                            if (data.audio.bgm) {
+                                GameAudio.setBGM(data.audio.bgm, { loop: true, fade: 0, volume: data.audio.bgmVol ?? 0.65 });
+                            } else {
+                                GameAudio.stopBGM({ fade: 0 });
+                            }
+                            if (typeof data.audio.ducking === 'number' && data.audio.ducking !== 1) {
+                                GameAudio.unduck();
+                            }
+                        }
+
+                        try {
+                            if (data && data.cg && typeof cgManager.importSnapshot === 'function') {
+                                await cgManager.importSnapshot(data.cg);
+                            }
+                        } catch (e) {
+                            console.warn('[startup] restore CG from currentSaveData failed:', e);
+                        }
+                        // 【兜底】currentSaveData 里也没有 cg：按 nodeId 回溯上一条 CG 指令
+                        // 【兜底】同样收紧：下一个是 cg/map 就不要回溯
+                        const nextEl2 = (data && typeof data.nodeId === 'number' && Array.isArray(window.storyData))
+                            ? window.storyData[data.nodeId] : null;
+                        const skipFallback2 = !!(nextEl2 && (nextEl2.type === 'cg' || nextEl2.type === 'map' || nextEl2.type === 'gotoMap'));
+
+                        if ((!data || !data.cg) && typeof data?.nodeId === 'number' && !skipFallback2) {
+
+                            try {
+                                let last = null;
+                                if (data.nodeId > 0 && Array.isArray(window.storyData)) {
+                                    for (let i = data.nodeId - 1; i >= 0; i--) {
+                                        const el = window.storyData[i];
+                                        if (el && el.type === 'cg' && el.url) {
+                                            last = { visible: true, image: { src: el.url }, text: el.text || '' };
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (last && typeof cgManager.importSnapshot === 'function') {
+                                    await cgManager.importSnapshot(last);
+                                    // 兼容：把兜底结果塞回 data，后面 startFrom 前就有背景了
+                                    data.cg = last;
+                                }
+                            } catch (e) {
+                                console.warn('[startup] fallback apply last CG (old path) failed:', e);
+                            }
+                        }
+
+
+                        if (data && typeof data.nodeId === 'number') {
+                            storyController.startFrom(data.nodeId);
+                        } else {
+                            storyController.start();
+                        }
+                    } else {
+                        storyController.start();
+                    }
+                }
+            } catch (e) {
+                console.warn('Startup restore failed:', e);
+                storyController.start();
+            } finally {
+                // 旧标记的兜底清理
+                sessionStorage.removeItem('resume');
+            }
+
+            // let startIndex = 0;
+            // try {
+            //     const resume = sessionStorage.getItem('resume');
+            //     const saved = sessionStorage.getItem('currentSaveData');
+            //     if (resume === '1' && saved) {
+            //         const data = JSON.parse(saved);
+            //         if (data && typeof data.nodeId === 'number') {
+            //             const total = Array.isArray(mainStoryElements) ? mainStoryElements.length : 0;
+            //             const n = Math.floor(data.nodeId);
+            //             if (total > 0 && n >= 0 && n < total) {
+            //                 startIndex = n;
+            //             } else {
+            //                 console.warn(`[续播回退] 存档步骤索引 ${n} 超出当前版本范围（总长 ${total}），将从 0 开始。`);
+            //                 startIndex = 0;
+            //             }
+            //         }
+            //     }
+            // } catch (e) {
+            //     console.warn('读取存档失败：', e);
+            // }
+
+
+            // // 用过一次续播标记就清掉，避免下次误续播（保持你的使用体验）
+            // sessionStorage.removeItem('resume');
+
+            // // ✅ 在真正续播前，先把上一个 scene/cg 应用一次，恢复画面
+            // if (startIndex > 0 && resourceManager.applyLastVisualBefore) {
+            //     // 让 ResourceManager 知道我们要用哪个数组（某些实现里 handleElement 可能会访问 controller 的元素）
+            //     storyController.storyElements = mainStoryElements;
+            //     await resourceManager.applyLastVisualBefore(mainStoryElements, startIndex);
+            // }
+
+            // // 从指定索引开始播放（需要 Step 2 已经支持 startIndex 参数）
+            // storyController.startStory(mainStoryElements, resourceManager, startIndex);
+
+            // resourceManager.on('complete', () => {
+            //     console.log("主线剧情已全部结束！准备跳转到新页面。");
+            //     setTimeout(() => {
+            //         window.location.href = './index.html';
+            //     }, 2000);
+            // });
+        });
+    </script>
+
+    <!-- 一次性操作指引（首次进入显示，之后不再显示） -->
+    <div id="controls-tip" hidden aria-hidden="true">
+        <div class="ct-card">
+            <h3>操作提示（仅首次显示）</h3>
+            <ul>
+                <li>移动：<b>W A S D</b></li>
+                <li>交互：<b>F</b></li>
+                <li>背包：<b>B</b></li>
+                <li>推进对话：<b>鼠标左键</b> / <b>空格</b></li>
+                <li>菜单 / 存档：<b>ESC</b></li>
+            </ul>
+            <button id="controls-tip-close" class="ct-btn">我知道了</button>
+            <p class="ct-hint">按 Enter / Esc 也可关闭</p>
+        </div>
+    </div>
+    <script>
+        (function () {
+            const tip = document.getElementById('controls-tip');
+            const btn = document.getElementById('controls-tip-close');
+            const KEY = 'seen_controls_tip_v1';   // 本地一次性标记（改名不影响功能）
+
+            function showTip() {
+                tip.hidden = false;
+                tip.setAttribute('aria-hidden', 'false');
+                // 可选：暂停底层滚动
+                // document.body.style.overflow = 'hidden';
+            }
+            function hideTip() {
+                tip.hidden = true;
+                tip.setAttribute('aria-hidden', 'true');
+                // 彻底让出点击 & 避免“透明罩子”
+                tip.style.pointerEvents = 'none';
+                // document.body.style.overflow = '';
+                // 移除自身，确保绝无残留
+                setTimeout(() => tip.remove(), 0);
+            }
+
+            // 关闭逻辑：按钮或按键
+            function closeAndRemember() {
+                try { localStorage.setItem(KEY, '1'); } catch (e) { }
+                hideTip();
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                // 只在第一次显示（本机一次；若希望“每个存档一次”，我可以再给你剧情旗标版本）
+                const seen = (() => { try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; } })();
+                if (!seen) showTip();
+            });
+
+            btn && btn.addEventListener('click', closeAndRemember);
+            document.addEventListener('keydown', (e) => {
+                if (tip.hidden) return;
+                if (e.key === 'Enter' || e.key === 'Escape') closeAndRemember();
+            });
+        })();
+    </script>
+
+</body>
+</html>

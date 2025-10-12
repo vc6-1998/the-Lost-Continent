@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Lost Continent - 成就页面</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Serif SC', serif;
+            background: linear-gradient(135deg, #1a1f2d, #2c3e50);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+            transition: background 0.8s ease;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .logo {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 2.2rem;
+            color: #e6f7ff;
+            text-shadow: 0 0 10px rgba(100, 200, 255, 0.7);
+        }
+
+        nav ul {
+            display: flex;
+            list-style: none;
+            gap: 25px;
+        }
+
+        nav a {
+            color: #a1e0ff;
+            text-decoration: none;
+            font-size: 1.1rem;
+            padding: 8px 15px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        nav a:hover {
+            background: rgba(100, 180, 255, 0.2);
+            text-shadow: 0 0 8px rgba(100, 200, 255, 0.8);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px 25px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.2rem;
+            font-weight: bold;
+            color: #4facfe;
+            text-shadow: 0 0 10px rgba(79, 172, 254, 0.5);
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #ccd6f6;
+        }
+
+        .achievement-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 20px;
+            perspective: 1000px;
+        }
+
+        .achievement-card {
+            background: rgba(25, 40, 60, 0.7);
+            border-radius: 15px;
+            overflow: hidden;
+            transition: transform 0.4s, box-shadow 0.4s;
+            height: 540px; /* 增加卡片高度 */
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            position: relative;
+            transform-style: preserve-3d;
+        }
+
+        .achievement-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+        }
+
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.8s;
+            transform-style: preserve-3d;
+        }
+
+        .achievement-card.locked:hover .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card-front,
+        .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-back {
+            transform: rotateY(180deg);
+            background: rgba(15, 30, 50, 0.9);
+            padding: 20px;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .card-back h3 {
+            color: #4facfe;
+            margin-bottom: 15px;
+            font-size: 1.4rem;
+        }
+
+        .card-back p {
+            color: #ccd6f6;
+            line-height: 1.6;
+            font-size: 1rem;
+        }
+
+        .card-image {
+            /* 确保正方形图片区域 */
+            height: 320px;
+            width: 100%;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #1a2436;
+            flex-shrink: 0; /* 防止图片区域被压缩 */
+        }
+
+        .card-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.5s;
+        }
+
+        .card-image .question-mark {
+            font-size: 6rem; /* 调整问号大小以适应正方形 */
+            color: #3a506b;
+            opacity: 0.7;
+        }
+
+        .achievement-card:hover .card-image img {
+            transform: scale(1.1);
+        }
+
+        .card-content {
+            padding: 20px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* 均匀分布内容 */
+            min-height: 220px; /* 确保内容区域有足够空间 */
+        }
+
+        .card-content h3 {
+            font-size: 1.4rem;
+            margin-bottom: 10px;
+            color: #a1e0ff;
+            text-shadow: 0 0 5px rgba(100, 180, 255, 0.5);
+            text-align: center;
+        }
+
+        .card-content p {
+            color: #ccd6f6;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 15px;
+            text-align: center;
+            flex-grow: 1; /* 描述文本占用可用空间 */
+        }
+
+        .achievement-state {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            text-align: center;
+            margin: 0 auto;
+            flex-shrink: 0; /* 防止状态标签被压缩 */
+        }
+
+        .state-locked {
+            background: rgba(200, 60, 60, 0.3);
+            color: #ff8a8a;
+        }
+
+        .state-unlocked {
+            background: rgba(60, 200, 120, 0.3);
+            color: #8affb8;
+        }
+
+        .fade {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: black;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s ease;
+            z-index: 1000;
+        }
+
+        .game-intro {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+        }
+
+        .game-intro h2 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: #4facfe;
+        }
+
+        .game-intro p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            color: #ccd6f6;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(25, 40, 60, 0.9);
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transform: translateX(100%);
+            transition: transform 0.5s ease;
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification-icon {
+            font-size: 1.5rem;
+            color: #4facfe;
+        }
+
+        .notification-content h4 {
+            margin-bottom: 5px;
+            color: #a1e0ff;
+        }
+
+        .notification-content p {
+            font-size: 0.9rem;
+            color: #ccd6f6;
+        }
+
+        @media (max-width: 768px) {
+            .achievement-grid {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            }
+
+            .header {
+                flex-direction: column;
+                text-align: center;
+                gap: 15px;
+            }
+
+            nav ul {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .stats-bar {
+                flex-wrap: wrap;
+                gap: 15px;
+            }
+
+            .notification {
+                left: 20px;
+                right: 20px;
+                transform: translateY(-100%);
+            }
+
+            .notification.show {
+                transform: translateY(0);
+            }
+            
+            .achievement-card {
+                height: 420px; /* 移动端稍小的高度 */
+            }
+            
+            .card-image {
+                height: 200px; /* 移动端稍小的图片区域 */
+            }
+            
+            .card-content {
+                min-height: 180px; /* 移动端内容区域调整 */
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="fade" id="fade"></div>
+    <div class="notification" id="notification">
+        <div class="notification-icon"><i class="fas fa-trophy"></i></div>
+        <div class="notification-content">
+            <h4 id="notif-title">成就已解锁!</h4>
+            <p id="notif-desc">恭喜您获得了一个新成就</p>
+        </div>
+    </div>
+
+    <div class="header">
+        <div class="logo">天地万象</div>
+        <nav>
+            <ul>
+                <li><a href="./index.html" onclick="fadeToPage(event, './index.html')">标题页</a></li>
+            </ul>
+        </nav>
+    </div>
+
+    <div class="container">
+        <div class="game-intro">
+            <h2>The Lost Continent</h2>
+            <p>在五域大陆的冒险旅程中，逐步找回"五种美德"与文明遗失的记忆。探索未知的世界，面对艰难的抉择，你的行动将决定这片大陆的未来。</p>
+        </div>
+
+        <div class="stats-bar">
+            <div class="stat">
+                <div class="stat-number">8</div>
+                <div class="stat-label">总成就数</div>
+            </div>
+            <div class="stat">
+                <div class="stat-number" id="unlocked-count">0</div>
+                <div class="stat-label">已解锁</div>
+            </div>
+            <div class="stat">
+                <div class="stat-number" id="completion-percent">0%</div>
+                <div class="stat-label">完成进度</div>
+            </div>
+        </div>
+
+        <div class="achievement-grid" id="achievement-container">
+            <!-- 成就会通过JavaScript动态生成 -->
+        </div>
+    </div>
+
+    <script>
+        // 成就数据
+        const achievements = [
+            {
+                id: 1,
+                title: "井边的外交官",
+                description: "并非以力取，而以礼立。你用水源和规则，在这片焦土上播下了第一颗名为“秩序”的种子。",
+                hint: "在找水源游戏中取得胜利并且以“礼”的规则分配资源",
+                image: "assets/img/achv/achv1.jpg",
+                unlocked: false
+            },
+            {
+                id: 2,
+                title: "枪炮与花",
+                description: " 你听见了武器的哭诉，而非颂歌。在程序正义的灰烬中，你选择探寻被背叛的“义”。",
+                hint: "成功修复地火控制台，探寻被背叛的“义”",
+                image: "assets/img/achv/achv2.jpg",
+                unlocked: false
+            },
+            {
+                id: 3,
+                title: "谷中回响",
+                description: "高墙因一块饼干的善意而崩塌。你证明了“仁”能穿透最深的迷雾，连接孤岛。",
+                hint: "得到女孩善意的“饼干”",
+                image: "assets/img/achv/achv3.jpg",
+                unlocked: false
+            },
+            {
+                id: 4,
+                title: "擦星人",
+                description: "你擦去的不是污垢，是蒙蔽真理的尘埃。愿文明永远保持抬头仰望、质疑权威的勇气。",
+                hint: "成功通过找寻碎片的试炼，擦去蒙蔽真理的尘埃",
+                image: "assets/img/achv/achv4.jpg",
+                unlocked: false
+            },
+            {
+                id: 5,
+                title: "铁板与骗局",
+                description: "你让真相在石阵上重生。“信”不是交易的筹码，而是文明的基石。",
+                hint: "在石阵放上绝密文件，让真相重生",
+                image: "assets/img/achv/achv5.jpg",
+                unlocked: false
+            },
+            {
+                id: 6,
+                title: "自衡之心",
+                description: "美德自成种子，无需称量。你成功恢复了五域大陆的平衡，带来了新生黎明。",
+                hint: "在关键时刻做出平衡的选择，不要偏向任何极端",
+                image: "assets/img/achv/achv6.jpg",
+                unlocked: false
+            },
+            {
+                id: 7,
+                title: "苦涩真理",
+                description: "以真相为种，埋于废墟。你发现了令人不安的真相，但世界尚未准备好接受它。",
+                hint: "不要害怕探索禁忌的知识，即使它令人不安",
+                image: "assets/img/achv/achv7.jpg",
+                unlocked: false
+            },
+            {
+                id: 8,
+                title: "失重的文明",
+                description: "当文明失重，便堕入深渊。你的选择导致五域大陆陷入更深的混乱与失衡。",
+                hint: "注意你的选择可能带来的长远后果",
+                image: "assets/img/achv/achv8.jpg",
+                unlocked: false
+            }
+        ];
+
+        // 从本地存储加载成就状态
+        function loadAchievements() {
+            const saved = localStorage.getItem('achievements');
+            if (saved) {
+                const savedAchievements = JSON.parse(saved);
+                savedAchievements.forEach((savedAchievement, index) => {
+                    if (index < achievements.length) {
+                        achievements[index].unlocked = savedAchievement.unlocked;
+                    }
+                });
+            }
+            updateStats();
+            renderAchievements();
+        }
+
+        // 保存成就状态到本地存储
+        function saveAchievements() {
+            localStorage.setItem('achievements', JSON.stringify(achievements));
+            updateStats();
+        }
+
+        // 更新统计数据
+        function updateStats() {
+            const unlockedCount = achievements.filter(a => a.unlocked).length;
+            const completionPercent = Math.round((unlockedCount / achievements.length) * 100);
+
+            document.getElementById('unlocked-count').textContent = unlockedCount;
+            document.getElementById('completion-percent').textContent = `${completionPercent}%`;
+        }
+
+        // 渲染成就卡片
+        function renderAchievements() {
+            const container = document.getElementById('achievement-container');
+            container.innerHTML = '';
+
+            achievements.forEach(achievement => {
+                const card = document.createElement('div');
+                card.className = `achievement-card ${achievement.unlocked ? '' : 'locked'}`;
+
+                // 创建卡片内部容器
+                const cardInner = document.createElement('div');
+                cardInner.className = 'card-inner';
+
+                // 卡片正面
+                const cardFront = document.createElement('div');
+                cardFront.className = 'card-front';
+
+                // 卡片图片部分
+                const cardImage = document.createElement('div');
+                cardImage.className = 'card-image';
+
+                if (achievement.unlocked && achievement.image) {
+                    const img = document.createElement('img');
+                    img.src = achievement.image;
+                    img.alt = achievement.title;
+                    cardImage.appendChild(img);
+                } else {
+                    const questionMark = document.createElement('div');
+                    questionMark.className = 'question-mark';
+                    questionMark.textContent = '?';
+                    cardImage.appendChild(questionMark);
+                }
+
+                // 卡片内容部分
+                const cardContent = document.createElement('div');
+                cardContent.className = 'card-content';
+
+                const title = document.createElement('h3');
+                title.textContent = achievement.unlocked ? achievement.title : '??????';
+                cardContent.appendChild(title);
+
+                if (achievement.unlocked) {
+                    const description = document.createElement('p');
+                    description.textContent = achievement.description;
+                    cardContent.appendChild(description);
+                } else {
+                    const hidden = document.createElement('p');
+                    hidden.textContent = '';
+                    hidden.style.color = '#6a7b94';
+                    hidden.style.fontStyle = 'italic';
+                    cardContent.appendChild(hidden);
+                }
+
+                const state = document.createElement('span');
+                state.className = achievement.unlocked ? 'achievement-state state-unlocked' : 'achievement-state state-locked';
+                state.textContent = achievement.unlocked ? '已达成' : '未达成';
+                cardContent.appendChild(state);
+
+                // 组装正面
+                cardFront.appendChild(cardImage);
+                cardFront.appendChild(cardContent);
+
+                // 卡片背面（提示）
+                const cardBack = document.createElement('div');
+                cardBack.className = 'card-back';
+
+                const hintTitle = document.createElement('h3');
+                hintTitle.textContent = '提示';
+                cardBack.appendChild(hintTitle);
+
+                const hintText = document.createElement('p');
+                hintText.textContent = achievement.hint;
+                cardBack.appendChild(hintText);
+
+                // 组装卡片内部
+                cardInner.appendChild(cardFront);
+                cardInner.appendChild(cardBack);
+
+                // 组装卡片
+                card.appendChild(cardInner);
+
+                container.appendChild(card);
+            });
+        }
+
+        // 解锁成就
+        function unlockAchievement(id) {
+            if (id >= 1 && id <= achievements.length) {
+                const index = id - 1;
+                if (!achievements[index].unlocked) {
+                    achievements[index].unlocked = true;
+
+                    // 显示通知
+                    showNotification(achievements[index].title, achievements[index].description);
+
+                    // 保存并重新渲染
+                    saveAchievements();
+                    renderAchievements();
+
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // 显示成就解锁通知
+        function showNotification(title, description) {
+            const notif = document.getElementById('notification');
+            const notifTitle = document.getElementById('notif-title');
+            const notifDesc = document.getElementById('notif-desc');
+
+            notifTitle.textContent = title;
+            notifDesc.textContent = description;
+
+            notif.classList.add('show');
+
+            setTimeout(() => {
+                notif.classList.remove('show');
+            }, 5000);
+        }
+
+        // 页面切换效果
+        function fadeToPage(event, url) {
+            event.preventDefault();
+            const fadeElement = document.getElementById('fade');
+            fadeElement.style.opacity = 1;
+            setTimeout(() => {
+                window.location.href = url;
+            }, 1000);
+        }
+
+        // 演示函数 - 在实际游戏中，您会在适当的时候调用unlockAchievement(id)
+        function demoUnlock() {
+            // 解锁几个成就作为演示
+            setTimeout(() => unlockAchievement(1), 1000);
+            setTimeout(() => unlockAchievement(3), 3000);
+            setTimeout(() => unlockAchievement(6), 5000);
+        }
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function () {
+            loadAchievements();
+
+            // 仅用于演示 - 在实际游戏中删除此行
+            //demoUnlock();
+        });
+    </script>
+</body>
+
+</html>

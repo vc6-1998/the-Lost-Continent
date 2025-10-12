@@ -1,0 +1,124 @@
+.header {
+  width: 90vw;
+  text-align: center;
+  display: block;
+  position: relative; /* 使用相对定位 */
+  top: 5vh; /* 使用负值将 header 向上移动 */
+  right: -6vw;
+}
+.header img{
+  width: 40%;  
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+.register-banner-text h3{
+  font-size: 4em;
+  text-align: center;
+  color: #FFFFFF;
+  font-family: 'fangsong';
+  letter-spacing: 10px;
+}
+.register-banner-text img {
+  display: block;
+  margin: 0 auto;
+}
+.register-form {
+  padding: 2em 0 2em;
+  position: relative;
+  top: 20vh;
+}
+.register-form-img {
+  position: absolute;
+  width: 100%;
+  height: 180%;
+  transform: translateY(-20%);
+  z-index: -1;
+}
+.register-form-text {
+  position: relative;
+  transform: translateY(20%);
+  color: #000000;
+}
+.register-form-line {
+  margin: 1em 0 1em;
+  padding: 0.5em 0 0.5em;
+  text-align: center;
+}
+
+.register-form-label {
+  /*display: inline-flex;*/
+  width: 5em;
+  font-size: 2em;
+  transform: translate(-10%);
+  color:#FFFFFF;
+  text-align: right;
+}
+
+.register-form-line input {
+  width: 5em;
+  font-size: 2em;
+  border-radius: 5%;
+}
+
+.register-button-group {
+  display: flex;
+  position: relative;
+  justify-content: center;
+  align-items: center;
+  top: 35vh;
+}
+.register-button {
+  position: relative;
+  text-align: center;
+  height: 8vh;
+  width: 8.5vw;
+  min-width: 100px;
+  margin-left: 8vw;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideInFromBottom {
+  from { transform: translate(-3%,100%); opacity: 0;}
+  to { transform: translate(-3%,-5%); opacity: 1;}
+}
+.register-form-text{
+    opacity: 0;
+    animation: fadeIn 1s ease forwards;
+}
+.register-button-group{
+    transform: translateY(100%);
+    animation: slideInFromBottom 1.6s ease forwards;
+}
+.register-button:hover {
+  transform: translateX(2px) translateY(2px);
+  cursor: pointer;
+}
+.register-button h5:hover{
+  color: red;
+}
+.register-button h5 {
+  display: block;
+  transform: translateX(-1vw);
+  padding: 0.7em 0 0.8em;
+  font-size: 3.3vh;
+  font-family: 'fangsong';
+  font-weight: bold;
+  color: #000000;
+}
+.register-button a {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.register-button>img {
+  position: absolute;
+  display: block;
+  width: 200%;
+  height: 100%;
+  transform: translateX(-31%) translateY(7%);
+  z-index: -1;
+}

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login Page</title>
+    <link rel="stylesheet" type="text/css" href="css\bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="css\register.css">
+    <link rel="stylesheet" type="text/css" href="css\default.css">
+    <script src="js/vendor/jquery-3.6.0.min.js"></script>
+    <script src="js/vendor/bootstrap.min.js"></script>
+    <script src="js/app/systems/save.js"></script>
+    <script src="js/app/systems/cUser.js"></script>
+
+</head>
+<body class="bg">
+    <script>
+        if(sessionStorage.getItem("loginUser")!=null)
+        {
+            window.location.href="./index.html";
+        }
+    </script>
+    
+    <!-- <div class="header">
+        <img src="./assets/img/title.png" alt="header">
+    </div> -->
+
+    <div class="register-form">
+        <form name="myForm">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-6 offset-md-3">
+                        <div class="register-form-text">
+                            <img src="./assets/img/login_box.png" class="register-form-img">
+                            <div class="row register-form-line">
+                                <div class="col-md-12">
+                                    <label style="font-family:'STKaiti'" class="register-form-label">USERNAME</label>
+                                    <input type="text" id="username" name="username" class="text">
+                                </div>
+                            </div>
+                            <div class="row register-form-line">
+                                <div class="col-md-12">
+                                    <label style="font-family:'STKaiti'" class="register-form-label">PASSWORD</label>
+                                    <input type="password" id="password" name="password">
+                                </div>
+                            </div>  
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+                        <div class="register-button-group">
+                            <div class="register-button" onclick="login()">
+                                 <img src="./assets/img/login_button.png">
+                                <h5>LOGIN</h5>
+                            </div>
+                            <div class="register-button">
+                                 <img src="./assets/img/login_button.png">
+                                <a href="register.html"><h5>REGISTER</h5></a>
+                            </div>
+                        </div>
+
+	<audio id="hoverSound" src="./assets/sound/sys_cursor.ogg"></audio>
+    <audio id="clickSound" src="./assets/sound/sys_click.ogg"></aodio>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var hoverSound = document.getElementById('hoverSound');
+                var clickSound = document.getElementById('clickSound');
+    
+                var savedButtonVolume = localStorage.getItem('buttonVolume');
+                if(savedButtonVolume) {
+                    hoverSound.volume = parseFloat(savedButtonVolume);
+                    clickSound.volume = parseFloat(savedButtonVolume);
+                }
+     
+            })
+        </script>
+
+    <script>
+		// 获取按钮容器中的所有按钮
+		var buttons = document.querySelectorAll('.register-button-group .register-button');
+		
+		// 获取音效元素
+		var hoverSound = document.getElementById('hoverSound');
+		var clickSound = document.getElementById('clickSound');
+		
+		// 为每个按钮添加鼠标悬停事件的监听器以播放悬停音效
+		buttons.forEach(function(button) {
+			button.addEventListener('mouseover', function() {
+				hoverSound.play();
+			});
+		});
+		
+		// 为每个按钮添加点击事件的监听器
+		buttons.forEach(function(button) {
+			button.addEventListener('click', function(event) {
+				// 播放点击音效
+				clickSound.play();
+				
+			});
+		});
+	</script>
+</body>
+</html>

@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>密室逃脱 - 高难度解密游戏</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- 配置Tailwind自定义颜色 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6366F1',
+                        secondary: '#EC4899',
+                        accent: '#F59E0B',
+                        dark: '#111827',
+                        light: '#F9FAFB'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .room-object {
+                @apply cursor-pointer transition-all duration-300 hover:scale-105 hover:brightness-110;
+            }
+            .room-object-hidden {
+                @apply opacity-0 pointer-events-none absolute;
+            }
+            .puzzle-item {
+                @apply bg-dark/80 rounded-lg p-4 mb-4 border border-gray-700 backdrop-blur-sm;
+            }
+            .clue {
+                @apply text-sm text-gray-400 italic mt-2;
+            }
+            .modal-backdrop {
+                @apply fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300;
+            }
+            .modal-backdrop.active {
+                @apply opacity-100 pointer-events-auto;
+            }
+            .modal-content {
+                @apply bg-gray-900 rounded-lg shadow-2xl max-w-md w-full transform scale-95 transition-transform duration-300;
+            }
+            .modal-backdrop.active .modal-content {
+                @apply scale-100;
+            }
+            .fade-in {
+                animation: fadeIn 0.5s ease-in-out;
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            .item-highlight {
+                animation: pulse 2s infinite;
+            }
+            @keyframes pulse {
+                0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+                70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+            }
+            .combination-digit {
+                @apply w-12 h-12 bg-gray-800 border-2 border-gray-700 rounded-md flex items-center justify-center text-2xl font-bold cursor-pointer hover:border-primary transition-colors;
+            }
+            .combination-digit.active {
+                @apply border-primary bg-gray-800/80;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-light min-h-screen">
+    <!-- 游戏标题和状态 -->
+    <header class="bg-dark/80 p-4 text-center backdrop-blur-sm">
+        <h1 class="text-2xl md:text-3xl font-bold text-primary mb-2">神秘实验室逃脱</h1>
+        <p class="text-gray-400">破解所有谜题，找到出口</p>
+        <div class="flex flex-wrap justify-center mt-3 gap-4">
+            <div class="flex items-center">
+                <i class="fa fa-key text-accent mr-2"></i>
+                <span>钥匙: <span id="keys-found" class="font-bold text-accent">0</span>/2</span>
+            </div>
+            <div class="flex items-center">
+                <i class="fa fa-flask text-secondary mr-2"></i>
+                <span>道具: <span id="items-found" class="font-bold text-secondary">0</span>/3</span>
+            </div>
+            <div class="flex items-center">
+                <i class="fa fa-lightbulb-o text-yellow-400 mr-2"></i>
+                <span>线索: <span id="clues-found" class="font-bold text-yellow-400">0</span>/6</span>
+            </div>
+        </div>
+    </header>
+    
+    <!-- 游戏主区域 -->
+    <main class="container mx-auto p-4 md:p-6 max-w-5xl">
+        <!-- 房间场景 -->
+        <div id="room" class="relative bg-gray-800 rounded-xl overflow-hidden mb-6 h-[500px]">
+            <img src="https://picsum.photos/id/119/1200/800" alt="实验室内部场景" class="w-full h-full object-cover opacity-60">
+            
+            <!-- 可交互物品 -->
+            <div id="whiteboard" class="room-object absolute top-[10%] left-[15%] w-[240px] h-[180px] bg-white/90" data-item="whiteboard">
+                <div class="p-2 text-gray-800 text-sm">
+                    <p class="mb-1">元素周期表片段:</p>
+                    <p class="font-mono">H=1, He=2, O=8, Na=11</p>
+                    <p class="font-mono">Mg=12, K=19, Fe=26</p>
+                    <div class="mt-2 border-t border-gray-300 pt-1">
+                        <p>能量方程式: E=?</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="cabinet" class="room-object absolute top-[40%] left-[20%] w-[180px] h-[200px] bg-gray-700/80" data-item="cabinet">
+                <div class="p-2 grid grid-cols-2 gap-2 h-full">
+                    <div id="cabinet-1" class="bg-gray-600 rounded-sm flex items-center justify-center text-xs" data-cabinet="1">1</div>
+                    <div id="cabinet-2" class="bg-gray-600 rounded-sm flex items-center justify-center text-xs" data-cabinet="2">2</div>
+                    <div id="cabinet-3" class="bg-gray-600 rounded-sm flex items-center justify-center text-xs" data-cabinet="3">3</div>
+                    <div id="cabinet-4" class="bg-gray-600 rounded-sm flex items-center justify-center text-xs" data-cabinet="4">4</div>
+                    <div id="cabinet-5" class="bg-gray-600 rounded-sm flex items-center justify-center text-xs" data-cabinet="5">5</div>
+                    <div id="cabinet-6" class="bg-gray-600 rounded-sm flex items-center justify-center text-xs" data-cabinet="6">6</div>
+                </div>
+            </div>
+            
+            <div id="computer" class="room-object absolute top-[60%] left-[50%] w-[200px] h-[150px] bg-gray-800/90 rounded" data-item="computer">
+                <div class="p-2 h-full flex flex-col">
+                    <div class="bg-gray-900 h-10 rounded-t flex items-center justify-center text-xs">
+                        <span>实验控制系统 v3.7</span>
+                    </div>
+                    <div class="bg-gray-900/50 flex-1 flex items-center justify-center">
+                        <i class="fa fa-lock text-gray-500"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="safe" class="room-object absolute top-[30%] right-[30%] w-[150px] h-[200px] bg-gray-800/90 rounded" data-item="safe">
+                <div class="p-3 h-full flex flex-col items-center">
+                    <div id="combination-lock" class="grid grid-cols-3 gap-1 my-4">
+                        <div class="combination-digit" data-digit="0">0</div>
+                        <div class="combination-digit" data-digit="1">1</div>
+                        <div class="combination-digit" data-digit="2">2</div>
+                        <div class="combination-digit" data-digit="3">3</div>
+                        <div class="combination-digit" data-digit="4">4</div>
+                        <div class="combination-digit" data-digit="5">5</div>
+                        <div class="combination-digit" data-digit="6">6</div>
+                        <div class="combination-digit" data-digit="7">7</div>
+                        <div class="combination-digit" data-digit="8">8</div>
+                    </div>
+                    <div id="safe-handle" class="w-10 h-6 bg-gray-700 rounded mt-2 cursor-pointer flex items-center justify-center">
+                        <i class="fa fa-arrow-right"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="microscope" class="room-object absolute top-[55%] right-[20%] w-[160px] h-[120px] bg-gray-700/80 rounded" data-item="microscope">
+                <div class="p-2 h-full flex flex-col items-center">
+                    <div class="w-16 h-16 rounded-full bg-gray-600 mt-1"></div>
+                    <div class="w-4 h-20 bg-gray-600 mt-1"></div>
+                </div>
+            </div>
+            
+            <div id="door" class="room-object absolute top-[25%] right-[5%] w-[100px] h-[300px] bg-gray-800/90 border-4 border-gray-700" data-item="door">
+                <div class="w-full h-full flex flex-col items-center justify-center">
+                    <div id="main-door-lock" class="w-[40px] h-[60px] bg-gray-700 rounded-md mt-4" data-item="main-door-lock">
+                        <div class="w-full h-full flex items-center justify-center">
+                            <i class="fa fa-lock text-2xl"></i>
+                        </div>
+                    </div>
+                    <div id="panel-lock" class="w-[80px] h-[40px] bg-gray-700 rounded-md mt-10" data-item="panel-lock">
+                        <div class="w-full h-full flex items-center justify-center text-xs">
+                            电源锁
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="plant" class="room-object absolute top-[20%] right-[50%] w-[100px] h-[150px]" data-item="plant">
+                <img src="https://picsum.photos/id/152/200/300" alt="室内植物" class="w-full h-full object-cover rounded-full">
+            </div>
+            
+            <!-- 隐藏物品 -->
+            <div id="hidden-key" class="room-object-hidden room-object absolute top-[15%] right-[52%] w-[20px] h-[20px] bg-accent rounded-full flex items-center justify-center">
+                <i class="fa fa-key text-xs"></i>
+            </div>
+            
+            <!-- 物品提示点 - 只在游戏开始时短暂显示 -->
+            <div class="absolute top-[10%] left-[15%] w-[240px] h-[180px] pointer-events-none">
+                <div class="hidden" id="whiteboard-highlight">
+                    <i class="fa fa-hand-pointer-o absolute -top-6 -right-6 text-2xl text-primary item-highlight"></i>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 玩家物品栏 -->
+        <div class="puzzle-item">
+            <h2 class="text-xl font-bold mb-3 flex items-center">
+                <i class="fa fa-briefcase text-primary mr-2"></i> 物品栏
+            </h2>
+            <div id="inventory" class="flex flex-wrap gap-3 max-h-32 overflow-y-auto">
+                <div class="text-gray-500 italic">你的物品将显示在这里...</div>
+            </div>
+        </div>
+        
+        <!-- 笔记/线索区 -->
+        <div class="puzzle-item">
+            <h2 class="text-xl font-bold mb-3 flex items-center">
+                <i class="fa fa-book text-secondary mr-2"></i> 研究笔记
+            </h2>
+            <div id="notes" class="space-y-3 text-gray-300 max-h-64 overflow-y-auto">
+                <div class="text-gray-500 italic">你发现的线索将记录在这里...</div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- 谜题模态框 -->
+    <div id="whiteboard-modal" class="modal-backdrop">
+        <div class="modal-content p-5">
+            <h3 class="text-xl font-bold text-primary mb-3">白板上的笔记</h3>
+            <div class="mb-4 bg-white/10 p-3 rounded">
+                <p class="mb-2">元素周期表片段:</p>
+                <p class="font-mono mb-3">H=1, He=2, O=8, Na=11</p>
+                <p class="font-mono mb-3">Mg=12, K=19, Fe=26</p>
+                <div class="border-t border-gray-700 pt-2 mt-2">
+                    <p class="mb-1">能量方程式: E=?</p>
+                    <p class="text-sm text-gray-400">似乎有擦拭过的痕迹，下面隐约有数字...</p>
+                </div>
+            </div>
+            <div class="flex justify-end">
+                <button class="close-modal bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">关闭</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="cabinet-modal" class="modal-backdrop">
+        <div class="modal-content p-5">
+            <h3 class="text-xl font-bold text-secondary mb-3">实验柜</h3>
+            <p class="mb-4">这是一个带有6个抽屉的实验柜，有些抽屉似乎锁着</p>
+            <div id="cabinet-contents" class="mb-4">
+                <p class="text-gray-500 italic">请选择一个抽屉查看</p>
+            </div>
+            <div class="grid grid-cols-6 gap-1 mb-4">
+                <button class="cabinet-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-drawer="1">1</button>
+                <button class="cabinet-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-drawer="2">2</button>
+                <button class="cabinet-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-drawer="3">3</button>
+                <button class="cabinet-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-drawer="4">4</button>
+                <button class="cabinet-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-drawer="5">5</button>
+                <button class="cabinet-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-drawer="6">6</button>
+            </div>
+            <div class="flex justify-end">
+                <button class="close-modal bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">关闭</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="computer-modal" class="modal-backdrop">
+        <div class="modal-content p-5">
+            <h3 class="text-xl font-bold text-accent mb-3">实验控制系统</h3>
+            <p class="mb-4">电脑需要用户名和密码才能登录</p>
+            <div class="space-y-3 mb-4">
+                <div>
+                    <label class="block text-sm mb-1">用户名</label>
+                    <input type="text" id="computer-username" placeholder="输入用户名" 
+                           class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">密码</label>
+                    <input type="password" id="computer-password" placeholder="输入密码" 
+                           class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2">
+                </div>
+                <p class="clue">提示: 用户名可能与元素有关</p>
+            </div>
+            <div class="flex justify-end">
+                <button class="close-modal bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded mr-2">关闭</button>
+                <button id="login-computer" class="bg-accent hover:bg-accent/80 px-4 py-2 rounded">登录</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="safe-modal" class="modal-backdrop">
+        <div class="modal-content p-5">
+            <h3 class="text-xl font-bold text-primary mb-3">组合保险箱</h3>
+            <p class="mb-4">这是一个需要3位数字密码的保险箱</p>
+            <div class="mb-4">
+                <div class="flex justify-center gap-2 mb-3">
+                    <div id="digit-1" class="w-10 h-10 bg-gray-800 border border-gray-700 rounded flex items-center justify-center text-xl">-</div>
+                    <div id="digit-2" class="w-10 h-10 bg-gray-800 border border-gray-700 rounded flex items-center justify-center text-xl">-</div>
+                    <div id="digit-3" class="w-10 h-10 bg-gray-800 border border-gray-700 rounded flex items-center justify-center text-xl">-</div>
+                </div>
+                <div id="combination-input" class="grid grid-cols-5 gap-1">
+                    <button class="combination-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-num="1">1</button>
+                    <button class="combination-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-num="2">2</button>
+                    <button class="combination-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-num="3">3</button>
+                    <button class="combination-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-num="4">4</button>
+                    <button class="combination-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-num="5">5</button>
+                    <button class="combination-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-num="6">6</button>
+                    <button class="combination-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-num="7">7</button>
+                    <button class="combination-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-num="8">8</button>
+                    <button class="combination-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-num="9">9</button>
+                    <button class="combination-btn w-full py-2 bg-gray-800 hover:bg-gray-700 rounded" data-num="0">0</button>
+                </div>
+                <button id="clear-combination" class="mt-2 text-sm text-gray-400 hover:text-gray-300">清除</button>
+                <p class="clue">提示: 密码可能与能量有关</p>
+            </div>
+            <div class="flex justify-end">
+                <button class="close-modal bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded mr-2">关闭</button>
+                <button id="open-safe-btn" class="bg-primary hover:bg-primary/80 px-4 py-2 rounded">打开</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="microscope-modal" class="modal-backdrop">
+        <div class="modal-content p-5">
+            <h3 class="text-xl font-bold text-secondary mb-3">显微镜</h3>
+            <p id="microscope-message" class="mb-4">显微镜需要样本才能观察</p>
+            <div id="microscope-sample-area" class="mb-4 hidden">
+                <div class="bg-gray-800 p-3 rounded flex items-center justify-center">
+                    <img id="microscope-view" src="" alt="显微镜视图" class="max-w-full max-h-40">
+                </div>
+                <p id="microscope-result" class="mt-2 text-center"></p>
+            </div>
+            <div id="use-sample-btn-container" class="hidden mb-4">
+                <button id="use-sample-btn" class="w-full bg-secondary hover:bg-secondary/80 px-4 py-2 rounded">
+                    使用样本进行观察
+                </button>
+            </div>
+            <div class="flex justify-end">
+                <button class="close-modal bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">关闭</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="plant-modal" class="modal-backdrop">
+        <div class="modal-content p-5">
+            <h3 class="text-xl font-bold text-green-400 mb-3">实验植物</h3>
+            <div class="mb-4">
+                <img src="https://picsum.photos/id/152/400/300" alt="实验植物" class="w-full h-auto rounded-md">
+                <p class="mt-2">这是一株特殊培育的实验植物，叶子上似乎有些异常</p>
+            </div>
+            <div id="plant-actions" class="flex justify-end">
+                <button id="examine-plant" class="bg-green-600 hover:bg-green-500 px-4 py-2 rounded mr-2">仔细检查</button>
+                <button class="close-modal bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">关闭</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="main-door-lock-modal" class="modal-backdrop">
+        <div class="modal-content p-5">
+            <h3 class="text-xl font-bold mb-3">主门锁</h3>
+            <p id="main-door-message" class="mb-4">这是实验室的主门，需要钥匙才能打开</p>
+            <div id="use-main-key-container" class="hidden mb-4">
+                <button id="use-main-key" class="w-full bg-accent hover:bg-accent/80 px-4 py-2 rounded flex items-center justify-center">
+                    <i class="fa fa-key mr-2"></i> 使用主钥匙开门
+                </button>
+            </div>
+            <div class="flex justify-end">
+                <button class="close-modal bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">关闭</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="panel-lock-modal" class="modal-backdrop">
+        <div class="modal-content p-5">
+            <h3 class="text-xl font-bold mb-3">电源控制面板</h3>
+            <p id="panel-message" class="mb-4">这个面板控制着实验室的主电源，目前处于锁定状态</p>
+            <div id="power-controls" class="hidden mb-4 space-y-3">
+                <div class="bg-gray-800 p-3 rounded">
+                    <div class="flex items-center justify-between mb-2">
+                        <span>电源开关</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="power-switch" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                        </label>
+                    </div>
+                    <div id="power-status" class="text-sm text-gray-400 text-center">电源关闭</div>
+                </div>
+            </div>
+            <div id="use-power-key-container" class="hidden mb-4">
+                <button id="use-power-key" class="w-full bg-primary hover:bg-primary/80 px-4 py-2 rounded">
+                    使用电源钥匙解锁面板
+                </button>
+            </div>
+            <div class="flex justify-end">
+                <button class="close-modal bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded">关闭</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 胜利模态框 -->
+    <div id="success-modal" class="modal-backdrop">
+        <div class="modal-content p-6 text-center">
+            <div class="text-6xl text-accent mb-4">
+                <i class="fa fa-trophy"></i>
+            </div>
+            <h2 class="text-2xl font-bold mb-3">恭喜你成功逃脱！</h2>
+            <p class="mb-6">你破解了所有谜题，成功逃离了神秘实验室！</p>
+            <div class="mb-6 bg-gray-800 p-4 rounded-lg">
+                <p>找到钥匙: <span id="final-keys" class="font-bold text-accent">0</span>/2</p>
+                <p>收集道具: <span id="final-items" class="font-bold text-secondary">0</span>/3</p>
+                <p>发现线索: <span id="final-clues" class="font-bold text-yellow-400">0</span>/6</p>
+            </div>
+            <button id="play-again" class="bg-primary hover:bg-primary/80 text-white font-bold py-3 px-6 rounded-lg">
+                再玩一次
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 游戏状态
+        const gameState = {
+            inventory: [],
+            clues: [],
+            keysFound: 0,
+            itemsFound: 0,
+            // 谜题完成状态
+            cabinetOpen: [false, false, false, false, false, false], // 6个抽屉
+            computerLoggedIn: false,
+            safeOpened: false,
+            plantExamined: false,
+            powerUnlocked: false,
+            powerOn: false,
+            // 组合锁状态
+            currentCombination: [],
+            // 密码和答案
+            correctComputerUsername: 'einstein',
+            correctComputerPassword: 'e=mc2',
+            correctSafeCombination: [2, 9, 9], // 基于E=mc²的数值表示
+            // 抽屉内容
+            cabinetContents: [
+                { locked: false, content: '一瓶蓝色液体，标签上写着"样本A"', item: '样本A', icon: 'fa-flask' },
+                { locked: true, content: '抽屉锁着，需要钥匙才能打开', item: null, icon: null },
+                { locked: false, content: '一张纸条，上面写着"用户名是伟大物理学家的名字"', item: null, icon: null, clue: true },
+                { locked: false, content: '一本笔记本，记录着"密码与质能方程有关"', item: null, icon: null, clue: true },
+                { locked: true, content: '抽屉锁着，需要钥匙才能打开', item: null, icon: null },
+                { locked: false, content: '一把小钥匙，标签上写着"实验柜"', item: '实验柜钥匙', icon: 'fa-key' }
+            ]
+        };
+        
+        // DOM元素
+        const elements = {
+            // 物品和谜题元素
+            whiteboard: document.getElementById('whiteboard'),
+            cabinet: document.getElementById('cabinet'),
+            computer: document.getElementById('computer'),
+            safe: document.getElementById('safe'),
+            microscope: document.getElementById('microscope'),
+            door: document.getElementById('door'),
+            mainDoorLock: document.getElementById('main-door-lock'),
+            panelLock: document.getElementById('panel-lock'),
+            plant: document.getElementById('plant'),
+            hiddenKey: document.getElementById('hidden-key'),
+            whiteboardHighlight: document.getElementById('whiteboard-highlight'),
+            
+            // 状态显示
+            keysFoundElement: document.getElementById('keys-found'),
+            itemsFoundElement: document.getElementById('items-found'),
+            cluesFoundElement: document.getElementById('clues-found'),
+            inventory: document.getElementById('inventory'),
+            notes: document.getElementById('notes'),
+            
+            // 模态框
+            whiteboardModal: document.getElementById('whiteboard-modal'),
+            cabinetModal: document.getElementById('cabinet-modal'),
+            computerModal: document.getElementById('computer-modal'),
+            safeModal: document.getElementById('safe-modal'),
+            microscopeModal: document.getElementById('microscope-modal'),
+            plantModal: document.getElementById('plant-modal'),
+            mainDoorLockModal: document.getElementById('main-door-lock-modal'),
+            panelLockModal: document.getElementById('panel-lock-modal'),
+            successModal: document.getElementById('success-modal'),
+            
+            // 模态框内容
+            cabinetContents: document.getElementById('cabinet-contents'),
+            computerUsername: document.getElementById('computer-username'),
+            computerPassword: document.getElementById('computer-password'),
+            digit1: document.getElementById('digit-1'),
+            digit2: document.getElementById('digit-2'),
+            digit3: document.getElementById('digit-3'),
+            microscopeMessage: document.getElementById('microscope-message'),
+            microscopeSampleArea: document.getElementById('microscope-sample-area'),
+            microscopeView: document.getElementById('microscope-view'),
+            microscopeResult: document.getElementById('microscope-result'),
+            mainDoorMessage: document.getElementById('main-door-message'),
+            panelMessage: document.getElementById('panel-message'),
+            powerControls: document.getElementById('power-controls'),
+            powerSwitch: document.getElementById('power-switch'),
+            powerStatus: document.getElementById('power-status'),
+            
+            // 按钮
+            loginComputer: document.getElementById('login-computer'),
+            clearCombination: document.getElementById('clear-combination'),
+            openSafeBtn: document.getElementById('open-safe-btn'),
+            useSampleBtn: document.getElementById('use-sample-btn'),
+            examinePlant: document.getElementById('examine-plant'),
+            useMainKey: document.getElementById('use-main-key'),
+            usePowerKey: document.getElementById('use-power-key'),
+            playAgain: document.getElementById('play-again'),
+            closeModals: document.querySelectorAll('.close-modal'),
+            finalKeys: document.getElementById('final-keys'),
+            finalItems: document.getElementById('final-items'),
+            finalClues: document.getElementById('final-clues')
+        };
+        
+        // 初始化游戏
+        function initGame() {
+            // 重置游戏状态
+            gameState.inventory = [];
+            gameState.clues = [];
+            gameState.keysFound = 0;
+            gameState.itemsFound = 0;
+            gameState.cabinetOpen = [false, false, false, false, false, false];
+            gameState.computerLoggedIn = false;
+            gameState.safeOpened = false;
+            gameState.plantExamined = false;
+            gameState.powerUnlocked = false;
+            gameState.powerOn = false;
+            gameState.currentCombination = [];
+            
+            // 更新UI
+            updateInventory();
+            updateNotes();
+            elements.keysFoundElement.textContent = '0';
+            elements.itemsFoundElement.textContent = '0';
+            elements.cluesFoundElement.textContent = '0';
+            
+            // 重置谜题UI
+            elements.digit1.textContent = '-';
+            elements.digit2.textContent = '-';
+            elements.digit3.textContent = '-';
+            elements.computerUsername.value = '';
+            elements.computerPassword.value = '';
+            elements.hiddenKey.classList.add('room-object-hidden');
+            elements.microscopeMessage.textContent = '显微镜需要样本才能观察';
+            elements.microscopeSampleArea.classList.add('hidden');
+            elements.useSampleBtn.parentElement.classList.add('hidden');
+            elements.mainDoorMessage.textContent = '这是实验室的主门，需要钥匙才能打开';
+            elements.useMainKey.parentElement.classList.add('hidden');
+            elements.panelMessage.textContent = '这个面板控制着实验室的主电源，目前处于锁定状态';
+            elements.powerControls.classList.add('hidden');
+            elements.usePowerKey.parentElement.classList.add('hidden');
+            elements.powerSwitch.checked = false;
+            elements.powerStatus.textContent = '电源关闭';
+            
+            // 隐藏所有模态框
+            hideAllModals();
+            
+            // 显示初始提示
+            elements.whiteboardHighlight.classList.remove('hidden');
+            setTimeout(() => {
+                elements.whiteboardHighlight.classList.add('hidden');
+            }, 3000);
+        }
+        
+        // 显示模态框
+        function showModal(modal) {
+            modal.classList.add('active');
+        }
+        
+        // 隐藏模态框
+        function hideModal(modal) {
+            modal.classList.remove('active');
+        }
+        
+        // 隐藏所有模态框
+        function hideAllModals() {
+            document.querySelectorAll('.modal-backdrop').forEach(modal => {
+                modal.classList.remove('active');
+            });
+        }
+        
+        // 添加物品到 inventory
+        function addToInventory(itemName, iconClass, isKey = false) {
+            // 检查物品是否已存在
+            if (gameState.inventory.some(item => item.name === itemName)) {
+                return;
+            }
+            
+            const item = {
+                name: itemName,
+                icon: iconClass,
+                isKey: isKey
+            };
+            
+            gameState.inventory.push(item);
+            updateInventory();
+            
+            // 更新计数
+            if (isKey) {
+                gameState.keysFound++;
+                elements.keysFoundElement.textContent = gameState.keysFound;
+                
+                // 如果是实验柜钥匙，解锁2号和5号抽屉
+                if (itemName === '实验柜钥匙') {
+                    gameState.cabinetContents[1].locked = false;
+                    gameState.cabinetContents[4].locked = false;
+                    showNotification('实验柜钥匙可以打开一些锁着的抽屉');
+                } 
+                // 如果是电源钥匙，解锁电源面板
+                else if (itemName === '电源钥匙') {
+                    elements.usePowerKey.parentElement.classList.remove('hidden');
+                }
+                // 如果是主门钥匙，解锁主门
+                else if (itemName === '主门钥匙') {
+                    elements.useMainKey.parentElement.classList.remove('hidden');
+                }
+            } else {
+                gameState.itemsFound++;
+                elements.itemsFoundElement.textContent = gameState.itemsFound;
+                
+                // 如果是样本A，允许在显微镜上使用
+                if (itemName === '样本A') {
+                    elements.useSampleBtn.parentElement.classList.remove('hidden');
+                }
+            }
+        }
+        
+        // 更新物品栏显示
+        function updateInventory() {
+            if (gameState.inventory.length === 0) {
+                elements.inventory.innerHTML = '<div class="text-gray-500 italic">你的物品将显示在这里...</div>';
+                return;
+            }
+            
+            elements.inventory.innerHTML = '';
+            gameState.inventory.forEach(item => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'bg-gray-800 p-2 rounded flex items-center';
+                itemElement.innerHTML = `<i class="fa ${item.icon} ${item.isKey ? 'text-accent' : 'text-secondary'} mr-2"></i> ${item.name}`;
+                elements.inventory.appendChild(itemElement);
+            });
+        }
+        
+        // 添加线索到笔记
+        function addClue(text) {
+            // 检查线索是否已存在
+            if (gameState.clues.includes(text)) {
+                return;
+            }
+            
+            gameState.clues.push(text);
+            updateNotes();
+            elements.cluesFoundElement.textContent = gameState.clues.length;
+        }
+        
+        // 更新笔记显示
+        function updateNotes() {
+            if (gameState.clues.length === 0) {
+                elements.notes.innerHTML = '<div class="text-gray-500 italic">你发现的线索将记录在这里...</div>';
+                return;
+            }
+            
+            elements.notes.innerHTML = '';
+            gameState.clues.forEach((clue, index) => {
+                const clueElement = document.createElement('div');
+                clueElement.className = 'fade-in';
+                clueElement.innerHTML = `<p><span class="text-yellow-400 font-bold">线索 ${index + 1}:</span> ${clue}</p>`;
+                elements.notes.appendChild(clueElement);
+            });
+        }
+        
+        // 显示通知
+        function showNotification(message) {
+            alert(`提示: ${message}`);
+        }
+        
+        // 查看抽屉内容
+        function viewCabinetDrawer(drawerIndex) {
+            const drawer = gameState.cabinetContents[drawerIndex];
+            
+            if (drawer.locked) {
+                elements.cabinetContents.innerHTML = '<p class="text-red-400">这个抽屉锁着，需要钥匙才能打开</p>';
+                return;
+            }
+            
+            // 标记抽屉为已打开
+            gameState.cabinetOpen[drawerIndex] = true;
+            
+            // 显示抽屉内容
+            elements.cabinetContents.innerHTML = `<p>${drawer.content}</p>`;
+            
+            // 如果有物品，添加到物品栏
+            if (drawer.item) {
+                const isKey = drawer.icon === 'fa-key';
+                addToInventory(drawer.item, drawer.icon, isKey);
+                
+                // 如果是线索，添加到笔记
+                if (drawer.clue) {
+                    addClue(drawer.content);
+                }
+            } else if (drawer.clue) {
+                // 添加线索
+                addClue(drawer.content);
+            }
+        }
+        
+        // 检查电脑登录
+        function checkComputerLogin() {
+            const username = elements.computerUsername.value.toLowerCase();
+            const password = elements.computerPassword.value.toLowerCase();
+            
+            if (username === gameState.correctComputerUsername && password === gameState.correctComputerPassword) {
+                gameState.computerLoggedIn = true;
+                addClue('电脑登录成功，系统显示："保险箱密码基于光速的平方值（299）"');
+                showNotification('登录成功！你获得了一条重要线索');
+                hideModal(elements.computerModal);
+                return true;
+            } else {
+                showNotification('用户名或密码不正确，请重试');
+                return false;
+            }
+        }
+        
+        // 添加数字到组合
+        function addCombinationDigit(digit) {
+            if (gameState.currentCombination.length < 3) {
+                gameState.currentCombination.push(digit);
+                updateCombinationDisplay();
+            }
+        }
+        
+        // 清除组合
+        function clearCombination() {
+            gameState.currentCombination = [];
+            updateCombinationDisplay();
+        }
+        
+        // 更新组合显示
+        function updateCombinationDisplay() {
+            elements.digit1.textContent = gameState.currentCombination[0] ?? '-';
+            elements.digit2.textContent = gameState.currentCombination[1] ?? '-';
+            elements.digit3.textContent = gameState.currentCombination[2] ?? '-';
+        }
+        
+        // 检查保险箱组合
+        function checkSafeCombination() {
+            if (gameState.currentCombination.length !== 3) {
+                showNotification('请输入3位数字的组合');
+                return false;
+            }
+            
+            for (let i = 0; i < 3; i++) {
+                if (gameState.currentCombination[i] !== gameState.correctSafeCombination[i]) {
+                    showNotification('组合不正确，请重试');
+                    return false;
+                }
+            }
+            
+            // 打开保险箱
+            gameState.safeOpened = true;
+            addToInventory('主门钥匙', 'fa-key', true);
+            addClue('保险箱里有一把主门钥匙，但门似乎还需要电源才能打开');
+            showNotification('恭喜！你打开了保险箱，获得了主门钥匙');
+            hideModal(elements.safeModal);
+            return true;
+        }
+        
+        // 使用样本观察
+        function useSample() {
+            elements.microscopeMessage.classList.add('hidden');
+            elements.microscopeSampleArea.classList.remove('hidden');
+            elements.microscopeView.src = 'https://picsum.photos/id/237/400/300';
+            elements.microscopeResult.textContent = '样本分析显示：含有特殊晶体结构，编号为K42';
+            
+            // 添加线索
+            addClue('显微镜分析结果：样本含有特殊晶体结构，编号为K42');
+            
+            // 解锁5号抽屉内容
+            if (!gameState.cabinetOpen[4]) {
+                gameState.cabinetContents[4].content = '一份文件，标记着"电源钥匙在植物盆栽中"';
+                gameState.cabinetContents[4].clue = true;
+            }
+        }
+        
+        // 检查植物
+        function examinePlant() {
+            if (!gameState.plantExamined) {
+                gameState.plantExamined = true;
+                showNotification('你在植物土壤中发现了一些东西！');
+                elements.hiddenKey.classList.remove('room-object-hidden');
+                addClue('植物盆栽中似乎藏着什么东西');
+            } else {
+                showNotification('再仔细看看植物周围');
+            }
+        }
+        
+        // 使用电源钥匙
+        function usePowerKey() {
+            gameState.powerUnlocked = true;
+            elements.panelMessage.textContent = '电源控制面板已解锁，可以操作了';
+            elements.usePowerKey.parentElement.classList.add('hidden');
+            elements.powerControls.classList.remove('hidden');
+        }
+        
+        // 切换电源
+        function togglePower() {
+            gameState.powerOn = elements.powerSwitch.checked;
+            elements.powerStatus.textContent = gameState.powerOn ? '电源已开启' : '电源关闭';
+            
+            if (gameState.powerOn) {
+                showNotification('主电源已开启，门现在可以打开了');
+            }
+        }
+        
+        // 使用主钥匙开门
+        function useMainKey() {
+            if (!gameState.powerOn) {
+                showNotification('请先开启主电源');
+                return;
+            }
+            
+            // 显示胜利界面
+            elements.finalKeys.textContent = gameState.keysFound;
+            elements.finalItems.textContent = gameState.itemsFound;
+            elements.finalClues.textContent = gameState.clues.length;
+            hideModal(elements.mainDoorLockModal);
+            setTimeout(() => {
+                showModal(elements.successModal);
+            }, 500);
+        }
+        
+        // 绑定事件
+        function bindEvents() {
+            // 物品点击事件
+            elements.whiteboard.addEventListener('click', () => {
+                showModal(elements.whiteboardModal);
+                addClue('白板上的元素周期表：H=1, He=2, O=8, Na=11, Mg=12, K=19, Fe=26，还有一个不完整的能量方程式');
+            });
+            
+            elements.cabinet.addEventListener('click', () => {
+                showModal(elements.cabinetModal);
+                elements.cabinetContents.innerHTML = '<p class="text-gray-500 italic">请选择一个抽屉查看</p>';
+            });
+            
+            elements.computer.addEventListener('click', () => {
+                showModal(elements.computerModal);
+            });
+            
+            elements.safe.addEventListener('click', () => {
+                showModal(elements.safeModal);
+            });
+            
+            elements.microscope.addEventListener('click', () => {
+                showModal(elements.microscopeModal);
+            });
+            
+            elements.mainDoorLock.addEventListener('click', () => {
+                showModal(elements.mainDoorLockModal);
+            });
+            
+            elements.panelLock.addEventListener('click', () => {
+                showModal(elements.panelLockModal);
+            });
+            
+            elements.plant.addEventListener('click', () => {
+                showModal(elements.plantModal);
+            });
+            
+            elements.hiddenKey.addEventListener('click', () => {
+                addToInventory('电源钥匙', 'fa-key', true);
+                addClue('找到一把标有"电源"的钥匙');
+                elements.hiddenKey.classList.add('room-object-hidden');
+                hideModal(elements.plantModal);
+            });
+            
+            // 抽屉按钮事件
+            document.querySelectorAll('.cabinet-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    const drawerIndex = parseInt(button.getAttribute('data-drawer')) - 1;
+                    viewCabinetDrawer(drawerIndex);
+                });
+            });
+            
+            // 组合按钮事件
+            document.querySelectorAll('.combination-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    const num = parseInt(button.getAttribute('data-num'));
+                    addCombinationDigit(num);
+                });
+            });
+            
+            // 按钮事件
+            elements.loginComputer.addEventListener('click', checkComputerLogin);
+            
+            elements.clearCombination.addEventListener('click', clearCombination);
+            
+            elements.openSafeBtn.addEventListener('click', checkSafeCombination);
+            
+            elements.useSampleBtn.addEventListener('click', useSample);
+            
+            elements.examinePlant.addEventListener('click', examinePlant);
+            
+            elements.usePowerKey.addEventListener('click', usePowerKey);
+            
+            elements.powerSwitch.addEventListener('change', togglePower);
+            
+            elements.useMainKey.addEventListener('click', useMainKey);
+            
+            elements.playAgain.addEventListener('click', () => {
+                hideModal(elements.successModal);
+                initGame();
+            });
+            
+            // 关闭模态框按钮
+            elements.closeModals.forEach(button => {
+                button.addEventListener('click', () => {
+                    hideAllModals();
+                });
+            });
+            
+            // 点击模态框背景关闭
+            document.querySelectorAll('.modal-backdrop').forEach(modal => {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        hideModal(modal);
+                    }
+                });
+            });
+            
+            // 键盘事件 - ESC关闭模态框
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    hideAllModals();
+                }
+            });
+        }
+        
+        // 启动游戏
+        window.addEventListener('load', () => {
+            initGame();
+            bindEvents();
+        });
+    </script>
+</body>
+</html>

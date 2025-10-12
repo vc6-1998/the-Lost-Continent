@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <title>读取存档 - 废弃大陆</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <!-- 引入一个免费的在线字体以增加风格（可选） -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" type="text/css" href="./css/default.css">
+    <link rel="stylesheet" type="text/css" href="./css/load_page.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
+    <script src="js/app/core/audio_manager.js"></script>
+
+</head>
+<body>
+    <div class="wrap">
+        <div class="toolbar">
+            <h1>读取存档</h1>
+            <div><a href="index.html">← 返回主菜单</a></div>
+        </div>
+
+        <div class="slots" id="slots">
+            <!-- 示例卡片，实际内容由 JS 渲染 -->
+            <div class="card">
+                <div class="title"></div>
+                <div class="meta"><br></div>
+                <div class="btns">
+                    <button>读取</button>
+                    <button>删除</button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="title"></div>
+                <div class="meta"><br></div>
+                <div class="btns">
+                    <button>读取</button>
+                    <button>删除</button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="title">空的存档</div>
+                <div class="title"></div>
+                <div class="meta"><br></div>
+                <div class="btns">
+                    <button disabled>读取</button>
+                    <button disabled>删除</button>
+                </div>
+            </div>
+            <!-- 更多卡片... -->
+        </div>
+    </div>
+
+    <div id="custom-modal-overlay" class="modal-overlay">
+        <div class="modal-window">
+            <h2 id="modal-title" class="modal-title">提示</h2>
+            <p id="modal-message" class="modal-message">确定要执行此操作吗？</p>
+            <div id="modal-buttons" class="btns modal-buttons">
+                <!-- 按钮将由 JS 动态生成 -->
+            </div>
+        </div>
+    </div>
+
+
+    <!-- 你的 JS 脚本，无需改动 -->
+    <script src="js/app/systems/cUser.js"></script>
+    <script src="js/app/systems/save.js"></script>
+    <script src="js/app/systems/save_system.js"></script>
+    <script src="js/app/data/story.js"></script>
+    <script>
+        if (typeof mainStoryElements !== 'undefined' && !window.mainStoryElements) {
+            window.mainStoryElements = mainStoryElements;
+        }
+    </script>
+    <script src="js/app/ui/load_page.js"></script>
+
+</body>
+</html>

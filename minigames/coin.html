@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>minigame-帮马尔科捡到金币</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial Rounded MT Bold', 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0f1b3a, #1c3b5e);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            overflow-x: hidden;
+            padding: 20px;
+        }
+        
+        .game-container {
+            width: 100%;
+            max-width: 900px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 20px;
+            position: relative;
+        }
+        
+        @media (max-width: 768px) {
+            .game-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .game-info {
+            background: rgba(0, 0, 0, 0.35);
+            border-radius: 20px;
+            padding: 25px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .game-play {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .header {
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 10;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: clamp(1.8rem, 5vw, 2.8rem);
+            text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+            margin-bottom: 10px;
+            color: #FFD700;
+            letter-spacing: 1px;
+        }
+        
+        .header p {
+            font-size: clamp(1rem, 3vw, 1.3rem);
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+        
+        .level-indicator {
+            background: rgba(255, 215, 0, 0.2);
+            border: 2px solid #FFD700;
+            border-radius: 30px;
+            padding: 8px 20px;
+            font-size: clamp(1rem, 2.5vw, 1.2rem);
+            margin-bottom: 20px;
+            display: inline-block;
+        }
+        
+        .valve-container {
+            position: relative;
+            width: min(320px, 80vw);
+            height: min(320px, 80vw);
+            margin: 0 auto 20px;
+            perspective: 1000px;
+        }
+        
+        .ring {
+            position: absolute;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 0 15px rgba(0, 150, 255, 0.4);
+            top: 0;
+            left: 0;
+            border: min(6px, 1.5vw) solid;
+        }
+        
+        /* 改进的指针设计 - 金色指针 */
+        .ring::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            width: min(50px, 15%);
+            height: min(30px, 9%);
+            background: linear-gradient(to bottom, #FFD700, #D4AF37);
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.5);
+            z-index: 20; /* 提高指示器层级 */
+        }
+        
+        .outer-ring {
+            width: 100%;
+            height: 100%;
+            border-color: #e74c3c;
+            background: rgba(231, 76, 60, 0.05);
+            z-index: 1;
+        }
+        
+        .middle-ring {
+            width: 66%;
+            height: 66%;
+            top: 17%;
+            left: 17%;
+            border-color: #f39c12;
+            background: rgba(243, 156, 18, 0.05);
+            z-index: 2;
+        }
+        
+        .inner-ring {
+            width: 33%;
+            height: 33%;
+            top: 33.5%;
+            left: 33.5%;
+            border-color: #2ecc71;
+            background: rgba(46, 204, 113, 0.05);
+            z-index: 3;
+        }
+        
+        .coin {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(45px, 14%);
+            height: min(45px, 14%);
+            background: radial-gradient(circle at 30% 30%, #FFD700, #D4AF37);
+            border-radius: 50%;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.9);
+            z-index: 10;
+            transition: all 1s ease;
+        }
+        
+        .exit {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: min(55px, 17%);
+            height: min(35px, 11%);
+            background: #5d6d7e;
+            border-radius: 0 0 12px 12px;
+            z-index: 5; /* 缺口层级 */
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: min(15px, 3vw);
+            margin-bottom: 25px;
+            width: 100%;
+            max-width: 600px;
+        }
+        
+        .combo-control {
+            background: rgba(255, 255, 255, 0.12);
+            border: min(3px, 0.5vw) solid;
+            border-radius: 15px;
+            padding: min(12px, 2vw) min(20px, 4vw);
+            color: white;
+            font-size: clamp(1rem, 3vw, 1.3rem);
+            cursor: pointer;
+            transition: all 0.3s;
+            min-width: min(220px, 65vw);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+            z-index: 2;
+        }
+        
+        .combo-control::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, 
+                rgba(255,255,255,0.1) 0%, 
+                rgba(255,255,255,0.2) 50%, 
+                rgba(255,255,255,0.1) 100%);
+            z-index: -1;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .combo-control:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+        }
+        
+        .combo-control:hover::before {
+            opacity: 1;
+        }
+        
+        .control-1 {
+            border-color: #2ecc71;
+        }
+        
+        .control-2 {
+            border-color: #3498db;
+        }
+        
+        .control-3 {
+            border-color: #e74c3c;
+        }
+        
+        .control-label {
+            font-size: clamp(0.8rem, 2.5vw, 1rem);
+            margin-top: 5px;
+            opacity: 0.8;
+        }
+        
+        .instructions {
+            background: rgba(0, 0, 0, 0.35);
+            border-radius: 15px;
+            padding: min(15px, 3vw);
+            font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+            line-height: 1.6;
+            border: min(2px, 0.5vw) solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+        
+        .moves-counter {
+            background: rgba(255, 215, 0, 0.15);
+            border: 2px solid #FFD700;
+            border-radius: 30px;
+            padding: min(10px, 2vw) min(20px, 4vw);
+            font-size: clamp(1.1rem, 3vw, 1.3rem);
+            display: inline-block;
+            margin: 15px 0;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .counter-value {
+            font-weight: bold;
+            color: #FFD700;
+            font-size: clamp(1.2rem, 3.5vw, 1.5rem);
+            margin-left: 5px;
+        }
+        
+        .success-message {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s;
+            padding: 20px;
+        }
+        
+        .success-message.show {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
+        .success-message h2 {
+            font-size: clamp(2.5rem, 8vw, 4rem);
+            color: #FFD700;
+            margin-bottom: 20px;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.9);
+            animation: pulse 2s infinite;
+            text-align: center;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .success-message p {
+            font-size: clamp(1.2rem, 4vw, 1.6rem);
+            margin-bottom: 30px;
+            max-width: 90%;
+            text-align: center;
+            line-height: 1.5;
+        }
+        
+        .continue-btn {
+            background: linear-gradient(to right, #2ecc71, #3498db);
+            border: none;
+            border-radius: 50px;
+            padding: min(15px, 3vw) min(40px, 10vw);
+            font-size: clamp(1.1rem, 3.5vw, 1.5rem);
+            color: white;
+            cursor: pointer;
+            transition: all 0.4s;
+            box-shadow: 0 8px 20px rgba(46, 204, 113, 0.5);
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        
+        .continue-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(46, 204, 113, 0.7);
+        }
+        
+        .water-effect {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, rgba(23, 85, 153, 0.3) 0%, transparent 70%);
+            animation: waterPulse 4s infinite alternate;
+            z-index: -1;
+        }
+        
+        @keyframes waterPulse {
+            0% { transform: scale(1); opacity: 0.3; }
+            100% { transform: scale(1.05); opacity: 0.6; }
+        }
+        
+        .bubbles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        
+        .bubble {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            animation: float linear infinite;
+        }
+        
+        @keyframes float {
+            to { transform: translateY(-100vh); }
+        }
+        
+        .level-success {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s;
+            padding: 20px;
+        }
+        
+        .level-success.show {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
+        .level-success h2 {
+            font-size: clamp(2.5rem, 8vw, 4rem);
+            color: #FFD700;
+            margin-bottom: 20px;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.9);
+            animation: pulse 2s infinite;
+            text-align: center;
+        }
+        
+        .level-success p {
+            font-size: clamp(1.2rem, 4vw, 1.6rem);
+            margin-bottom: 30px;
+            max-width: 90%;
+            text-align: center;
+            line-height: 1.5;
+        }
+        
+        .next-level-btn {
+            background: linear-gradient(to right, #f39c12, #e74c3c);
+            border: none;
+            border-radius: 50px;
+            padding: min(15px, 3vw) min(40px, 10vw);
+            font-size: clamp(1.1rem, 3.5vw, 1.5rem);
+            color: white;
+            cursor: pointer;
+            transition: all 0.4s;
+            box-shadow: 0 8px 20px rgba(243, 156, 18, 0.5);
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        
+        .next-level-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(243, 156, 18, 0.7);
+        }
+        
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .combo-control {
+                width: 100%;
+                max-width: 350px;
+            }
+            
+            .valve-container {
+                margin-bottom: 20px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .header p {
+                font-size: 1rem;
+            }
+            
+            .combo-control {
+                padding: 10px 15px;
+            }
+            
+            .instructions {
+                padding: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="water-effect"></div>
+    <div class="bubbles"></div>
+
+    <div class="game-container">
+        <div class="game-info">
+            <div class="header">
+                <h1>下水道金币救援</h1>
+                <p>使用组合按钮旋转阀门，解救卡在复杂管道中的金币！</p>
+            </div>
+
+            <div class="level-indicator">关卡: <span id="current-level">1</span>/2</div>
+
+            <div class="instructions" id="level-instructions">
+                <h3>游戏说明</h3>
+                <p>金币被困在复杂的下水道阀门系统中！每个按钮会同时旋转两个环：</p>
+                <p>• 内层每次转60° | 中层每次转120° | 外层每次转240°</p>
+                <p>所有环的缺口对齐时，金币就会掉落！</p>
+            </div>
+
+            <div class="moves-counter">移动次数: <span class="counter-value" id="moves">0</span></div>
+        </div>
+
+        <div class="game-play">
+            <div class="valve-container">
+                <div class="ring outer-ring" data-angle="240"></div>
+                <div class="ring middle-ring" data-angle="240"></div>
+                <div class="ring inner-ring" data-angle="240"></div>
+                <div class="coin"></div>
+                <div class="exit"></div>
+            </div>
+
+            <div class="controls">
+                <button class="combo-control control-1">
+                    <div>内层 + 中层</div>
+                    <div class="control-label" id="control-label-1">(旋转60° + 120°)</div>
+                </button>
+                <button class="combo-control control-2">
+                    <div>内层 + 外层</div>
+                    <div class="control-label" id="control-label-2">(旋转60° + 240°)</div>
+                </button>
+                <button class="combo-control control-3">
+                    <div>中层 + 外层</div>
+                    <div class="control-label" id="control-label-3">(旋转120° + 240°)</div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="level-success">
+        <h2>成功捡到金币！</h2>
+        <p>你成功解救了第一枚金币！</p>
+        <button class="next-level-btn">下一关</button>
+    </div>
+
+    <div class="success-message">
+        <h2>任务完成！</h2>
+        <p>你成功解救了所有金币！NPC的贵重物品已找回。</p>
+        <button class="continue-btn">继续故事</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // 获取游戏元素
+            const outerRing = document.querySelector('.outer-ring');
+            const middleRing = document.querySelector('.middle-ring');
+            const innerRing = document.querySelector('.inner-ring');
+            const coin = document.querySelector('.coin');
+            const comboControls = document.querySelectorAll('.combo-control');
+            const successMessage = document.querySelector('.success-message');
+            const levelSuccess = document.querySelector('.level-success');
+            const continueBtn = document.querySelector('.continue-btn');
+            const nextLevelBtn = document.querySelector('.next-level-btn');
+            const movesCounter = document.getElementById('moves');
+            const bubblesContainer = document.querySelector('.bubbles');
+            const levelIndicator = document.getElementById('current-level');
+            const levelInstructions = document.getElementById('level-instructions');
+
+            // 获取控制标签元素
+            const controlLabel1 = document.getElementById('control-label-1');
+            const controlLabel2 = document.getElementById('control-label-2');
+            const controlLabel3 = document.getElementById('control-label-3');
+
+            let moves = 0;
+            let gameSolved = false;
+            let currentLevel = 1;
+            let innerStep, middleStep, outerStep;
+
+            // 创建气泡效果
+            function createBubbles() {
+                for (let i = 0; i < 20; i++) {
+                    const bubble = document.createElement('div');
+                    bubble.classList.add('bubble');
+
+                    // 随机大小和位置
+                    const size = Math.random() * 20 + 5;
+                    bubble.style.width = `${size}px`;
+                    bubble.style.height = `${size}px`;
+                    bubble.style.left = `${Math.random() * 100}%`;
+                    bubble.style.bottom = `-${size}px`;
+
+                    // 随机动画
+                    const duration = Math.random() * 15 + 10;
+                    const delay = Math.random() * 5;
+                    bubble.style.animationDuration = `${duration}s`;
+                    bubble.style.animationDelay = `${delay}s`;
+
+                    bubblesContainer.appendChild(bubble);
+                }
+            }
+
+            // 初始化游戏
+            function initGame() {
+                // 设置关卡参数
+                if (currentLevel === 1) {
+                    // 第一关参数
+                    innerStep = 60;
+                    middleStep = 120;
+                    outerStep = 240;
+
+                    // 起始角度均为240度
+                    outerRing.dataset.angle = "240";
+                    middleRing.dataset.angle = "240";
+                    innerRing.dataset.angle = "240";
+
+                    // 更新按钮标签
+                    controlLabel1.textContent = "(旋转60° + 120°)";
+                    controlLabel2.textContent = "(旋转60° + 240°)";
+                    controlLabel3.textContent = "(旋转120° + 240°)";
+
+                    // 更新关卡说明
+                    levelInstructions.innerHTML = `
+                                <h3>第一关说明</h3>
+                                <p>金币被困在复杂的下水道阀门系统中！每个按钮会同时旋转两个环：</p>
+                                <p>• 内层每次转60° | 中层每次转120° | 外层每次转240°</p>
+                                <p>所有环的缺口对齐时，金币就会掉落！</p>
+                            `;
+                } else {
+                    // 第二关参数
+                    innerStep = 60;
+                    middleStep = 120;
+                    outerStep = 120;
+
+                    // 起始角度：内层0°，中层0°，外层240°
+                    outerRing.dataset.angle = "240";
+                    middleRing.dataset.angle = "0";
+                    innerRing.dataset.angle = "0";
+
+                    // 更新按钮标签
+                    controlLabel1.textContent = "(旋转60° + 120°)";
+                    controlLabel2.textContent = "(旋转60° + 120°)";
+                    controlLabel3.textContent = "(旋转120° + 120°)";
+
+                    // 更新关卡说明
+                    levelInstructions.innerHTML = `
+                                <h3>第二关说明</h3>
+                                <p>更复杂的阀门系统！每个按钮会同时旋转两个环：</p>
+                                <p>• 内层每次转60° | 中层每次转120° | 外层每次转120°</p>
+                                <p>所有环的缺口对齐时，金币就会掉落！</p>
+                            `;
+                }
+
+                // 应用角度
+                outerRing.style.transform = `rotate(${outerRing.dataset.angle}deg)`;
+                middleRing.style.transform = `rotate(${middleRing.dataset.angle}deg)`;
+                innerRing.style.transform = `rotate(${innerRing.dataset.angle}deg)`;
+
+                // 更新关卡指示器
+                levelIndicator.textContent = currentLevel;
+
+                // 重置金币位置
+                coin.style.top = '50%';
+                coin.style.opacity = '1';
+                coin.style.transition = 'all 1s ease';
+
+                // 重置游戏状态
+                gameSolved = false;
+                moves = 0;
+                movesCounter.textContent = moves;
+                successMessage.classList.remove('show');
+                levelSuccess.classList.remove('show');
+
+                // 清除旧气泡
+                bubblesContainer.innerHTML = '';
+
+                // 创建新气泡
+                createBubbles();
+            }
+
+            // 旋转阀门函数
+            function rotateRings(innerRotate, middleRotate, outerRotate) {
+                if (gameSolved) return;
+
+                // 更新内环角度
+                if (innerRotate) {
+                    const currentAngle = parseInt(innerRing.dataset.angle);
+                    const newAngle = (currentAngle + innerStep) % 360;
+                    innerRing.dataset.angle = newAngle;
+                    innerRing.style.transform = `rotate(${newAngle}deg)`;
+                }
+
+                // 更新中环角度
+                if (middleRotate) {
+                    const currentAngle = parseInt(middleRing.dataset.angle);
+                    const newAngle = (currentAngle + middleStep) % 360;
+                    middleRing.dataset.angle = newAngle;
+                    middleRing.style.transform = `rotate(${newAngle}deg)`;
+                }
+
+                // 更新外环角度
+                if (outerRotate) {
+                    const currentAngle = parseInt(outerRing.dataset.angle);
+                    const newAngle = (currentAngle + outerStep) % 360;
+                    outerRing.dataset.angle = newAngle;
+                    outerRing.style.transform = `rotate(${newAngle}deg)`;
+                }
+
+                // 更新移动次数
+                moves++;
+                movesCounter.textContent = moves;
+
+                // 检查是否成功
+                checkSolution();
+            }
+
+            // 检查解决方案
+            function checkSolution() {
+                const innerAngle = parseInt(innerRing.dataset.angle) % 360;
+                const middleAngle = parseInt(middleRing.dataset.angle) % 360;
+                const outerAngle = parseInt(outerRing.dataset.angle) % 360;
+
+                // 检查所有角度是否在0度附近（允许小误差）
+                const innerAligned = innerAngle < 10 || innerAngle > 350;
+                const middleAligned = middleAngle < 10 || middleAngle > 350;
+                const outerAligned = outerAngle < 10 || outerAngle > 350;
+
+                if (innerAligned && middleAligned && outerAligned) {
+                    gameSolved = true;
+                    // 金币掉落动画
+                    coin.style.top = '100%';
+                    coin.style.opacity = '0';
+
+                    // 添加掉落动画效果
+                    coin.style.transition = 'top 1.5s cubic-bezier(0.55, 0.09, 0.68, 0.53), opacity 1.2s ease';
+
+                    // 根据关卡显示不同成功消息
+                    setTimeout(() => {
+                        if (currentLevel === 1) {
+                            levelSuccess.classList.add('show');
+                        } else {
+                            successMessage.classList.add('show');
+                        }
+                    }, 1500);
+                }
+            }
+
+            // 添加控制按钮事件
+            comboControls[0].addEventListener('click', () => {
+                // 内层 + 中层
+                rotateRings(true, true, false);
+            });
+
+            comboControls[1].addEventListener('click', () => {
+                // 内层 + 外层
+                rotateRings(true, false, true);
+            });
+
+            comboControls[2].addEventListener('click', () => {
+                // 中层 + 外层
+                rotateRings(false, true, true);
+            });
+
+            // 继续按钮事件：真正结束并上报 success 给父页
+            continueBtn.addEventListener('click', () => {
+                if (window.MG_DONE_SUCCESS) {
+                    window.MG_DONE_SUCCESS(); // 父页收到 success → 走 onSuccess 分支并关闭遮罩
+                } else {
+                    // 单独打开 coin.html 测试时的兜底
+                    alert('任务完成！返回主线……');
+                    // 如果不想刷新，删掉下一行
+                    setTimeout(() => location.reload(), 600);
+                }
+            });
+
+            // 下一关按钮事件
+            nextLevelBtn.addEventListener('click', () => {
+                currentLevel = 2;
+                initGame();
+            });
+
+            // 初始化游戏
+            initGame();
+        });
+    </script>
+    <script>
+        /**
+         * 仅做两件事：
+         * 1) ?allowSkip=1 时显示“跳过（视为成功）”按钮（高对比度）
+         * 2) 与父页通信：{ type:'mg:done', id:'jianyingbi', result:'success'|'failure'|'quit' }
+         *    —— 默认：跳过=success
+         */
+        (() => {
+            const q = new URLSearchParams(location.search);
+            const ALLOW_SKIP = q.get('allowSkip') === '1';
+            const PARENT_ORIGIN = q.get('parentOrigin') || '*';
+            const ID = 'jianyingbi'; // 剧情里 coin 的 name
+
+            let SENT = false;
+            function notify(result) {
+                if (SENT) return;
+                SENT = true;
+                try {
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({ type: 'mg:done', id: ID, result }, PARENT_ORIGIN);
+                    }
+                } catch (_) { }
+            }
+
+            // 暴露给内部逻辑用（上面的必改①会用到）
+            window.MG_DONE_SUCCESS = () => notify('success');
+            window.MG_DONE_FAILURE = () => notify('failure');
+
+            // —— 高对比度“跳过（视为成功）”按钮（允许时才显示）——
+            if (ALLOW_SKIP) {
+                const btn = document.createElement('button');
+                btn.textContent = '跳过（视为成功）';
+                Object.assign(btn.style, {
+                    position: 'fixed',
+                    top: '14px',
+                    right: '14px',
+                    zIndex: '2147483647',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    border: '2px solid #000',
+                    background: '#FFD400',
+                    color: '#000',
+                    fontSize: '15px',
+                    fontWeight: '700',
+                    letterSpacing: '0.5px',
+                    boxShadow: '0 0 0 3px rgba(255,255,255,0.95), 0 3px 12px rgba(0,0,0,0.45)',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    transition: 'transform .08s ease, box-shadow .08s ease'
+                });
+                btn.addEventListener('mouseenter', () => {
+                    btn.style.transform = 'scale(1.05)';
+                    btn.style.boxShadow = '0 0 0 3px rgba(255,255,255,1), 0 6px 18px rgba(0,0,0,0.5)';
+                });
+                btn.addEventListener('mouseleave', () => {
+                    btn.style.transform = 'scale(1)';
+                    btn.style.boxShadow = '0 0 0 3px rgba(255,255,255,0.95), 0 3px 12px rgba(0,0,0,0.45)';
+                });
+                btn.addEventListener('mousedown', () => (btn.style.transform = 'scale(0.98)'));
+                btn.addEventListener('mouseup', () => (btn.style.transform = 'scale(1.05)'));
+                btn.addEventListener('focus', () => {
+                    btn.style.boxShadow = '0 0 0 5px rgba(255,255,255,1), 0 6px 18px rgba(0,0,0,0.55)';
+                    btn.style.outline = 'none';
+                });
+                btn.addEventListener('blur', () => {
+                    btn.style.boxShadow = '0 0 0 3px rgba(255,255,255,0.95), 0 3px 12px rgba(0,0,0,0.45)';
+                });
+
+                btn.addEventListener('click', () => notify('success')); // 跳过=成功
+                document.body.appendChild(btn);
+            }
+        })();
+    </script>
+
+
+</body>
+</html>

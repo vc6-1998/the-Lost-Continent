@@ -1,0 +1,168 @@
+* {
+	margin: 0;
+	padding: 0;
+    box-sizing: border-box;
+}
+body {
+	height: 100vh;
+	width: 100vw;
+    overflow-x: hidden;
+    background-image: url('../assets/img/index.png');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
+    background-attachment: fixed;
+    font-family: 'Arial', sans-serif;
+}
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(18, 16, 14, 0.3);
+    z-index: -1;
+}
+a {
+	text-decoration: none;
+	
+}
+.index-video {
+	position: absolute;
+	height: 100%;
+	width: 100%;
+	top: 0;
+	left: 0;
+	object-fit: initial;
+	z-index: -2;
+}
+.button-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center; 
+    /* margin: auto; */
+    /* margin-top: 6rem; */
+    width: 100%;
+    position: relative;
+    top: 70%; 
+    transform: translateY(-50%); 
+}
+
+.button {
+    position: relative;
+    padding: 1rem 2rem;
+    letter-spacing: 0.5vw;
+    font-family: 'Arial', sans-serif;
+    font-weight: bold;
+    font-size: 6vh;
+    margin: 0.6rem 0;
+    text-align: center;
+    width: 300px;
+    max-width: 80%;
+    transition: all 0.3s ease;
+}
+
+.button-img {
+    max-width: 100%;
+}
+
+.button a {
+    color: #faf6f6;
+    height: 100%;
+    width: 100%;
+    display: block;
+    font-size: 3vh;
+    text-align: center;
+}
+
+.button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.button a:hover {
+    color: #ff4d4d;
+}
+
+.button>img {
+    display: block;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    top: 0;
+    left: 0;
+    opacity: 0.7;
+    border-radius: 5px;
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(18, 16, 14, 0.8);
+    backdrop-filter: blur(5px); /* 更强的毛玻璃效果 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none; /* 隐藏时不可交互 */
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.visible {
+    opacity: 1;
+    pointer-events: auto; /* 显示时可交互 */
+}
+
+.modal-window {
+    background: #1e1a16;
+    padding: 24px 32px;
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+    
+    /* 复用卡片的边框样式 */
+    border: 2px solid transparent;
+    border-image: url('data:image/svg+xml;utf8,<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><style>path{fill:rgba(200,180,140,0.5);}</style><path d="M0 0 H20 V10 H10 V20 H0z M80 0 H100 V20 H90 V10 H80z M0 80 H10 V90 H20 V100 H0z M90 80 H100 V100 H80 V90 H90z"/></svg>') 20 fill / 10px / 5px;
+}
+
+.modal-overlay.visible .modal-window {
+    transform: scale(1); /* 显示时恢复正常大小 */
+}
+
+.modal-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f0e6d2;
+    margin: 0 0 16px;
+    letter-spacing: 1px;
+}
+
+.modal-message {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 16px;
+    color: #bbaea0;
+    line-height: 1.6;
+    margin: 0 0 24px;
+}
+
+.modal-buttons {
+    justify-content: center; /* 让按钮居中 */
+}
+
+/* 为确认按钮添加特殊样式，使其更醒目 */
+.modal-buttons button.confirm-btn {
+    background: rgba(200, 180, 140, 0.2);
+    border-color: rgba(200, 180, 140, 0.8);
+}
+.modal-buttons button.confirm-btn:hover {
+    background: rgba(200, 180, 140, 0.4);
+    color: #fff;
+}

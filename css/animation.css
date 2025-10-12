@@ -1,0 +1,38 @@
+.show-team-icon {
+	position: absolute;
+	transform: translate(-50%,-50%);
+	top: 50%;
+	left: 50%;
+	width: 120vh;
+	height: 50vh;
+}
+
+.fade-in-black {
+	position: absolute;
+	height: 100vh;
+	width: 100vw;
+	z-index: 10;
+}
+.show-title-icon {
+	position: absolute;
+	transform: translate(-50%,-50%);
+	top: 50%;
+	left: 50%;
+}
+.flash-red {
+	position: absolute;
+	height: 100vh;
+	width: 100vw;
+}
+.show-end {
+	transform: translateX(50%) translateY(10%);
+	margin-left: -25%;
+	object-fit: contain;
+}
+.show-gameover{
+	position: absolute;
+	transform: translate(-50%,-50%);
+	top: 50%;
+	left: 50%;
+}
+

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Index Page</title>
+	<link rel="stylesheet" type="text/css" href="css\bootstrap.min.css">
+	<link rel="stylesheet" type="text/css" href="css\index.css">
+	<link rel="stylesheet" type="text/css" href="css\default.css">
+	<script src="js/vendor/jquery-3.6.0.min.js"></script>
+	<script src="js/vendor/bootstrap.min.js"></script>
+	<script src="js/app/systems/save.js"></script>
+	<script src="js/app/systems/cUser.js"></script>
+	<script src="js/app/systems/save_system.js"></script>
+	<script src="js/app/core/audio_manager.js"></script>
+	<script>
+		(function () {
+			const TRACK = 'menu_theme'; // 三个页面同一首
+
+			document.addEventListener('DOMContentLoaded', () => {
+				GameAudio?.init();
+
+				// 尝试：页面加载就播（如果浏览器允许，就立刻有音乐）
+				const tryAuto = () => GameAudio?.setBGM(TRACK, { loop: true, fade: 600, volume: 0.6 });
+				tryAuto();
+
+				// 兜底：若被策略拦下，首次用户手势再次触发 setBGM（见第1步补丁）
+				const startOnGesture = () => {
+					window.removeEventListener('pointerdown', startOnGesture, true);
+					window.removeEventListener('keydown', startOnGesture, true);
+					window.removeEventListener('focusin', startOnGesture, true);
+					tryAuto(); // 再来一次，若上次被拦，这次会真正播放
+				};
+				window.addEventListener('pointerdown', startOnGesture, { capture: true, once: true });
+				window.addEventListener('keydown', startOnGesture, { capture: true, once: true });
+				window.addEventListener('focusin', startOnGesture, { capture: true, once: true });
+
+				// 离开页面淡出
+				window.addEventListener('pagehide', () => GameAudio?.stopBGM({ fade: 300 }));
+			});
+		})();
+	</script>
+
+
+
+
+</head>
+<body class="bg">
+    <div class="button-group" id="Button">
+        <div class="button">
+            <img class="button-img" src="./assets/img/button_img.png">
+            <a href="./game.html">START</a>
+        </div>
+        <div class="button">
+            <img class="button-img" src="./assets/img/button_img.png">
+            <a href="./load.html">LOAD</a>
+        </div>
+        <div class="button">
+            <img class="button-img" src="./assets/img/button_img.png">
+            <a href="./achievement.html">ACHIEVEMENT</a>
+        </div>
+        <div class="button">
+            <img class="button-img" src="./assets/img/button_img.png">
+            <a href="./about/about.html">ABOUT</a>
+        </div>
+    </div>
+    <!-- 音效文件 -->
+    <audio id="hoverSound" src="./assets/sound/sys_cursor.ogg"></audio>
+    <audio id="clickSound" src="./assets/sound/sys_click.ogg"></audio>
+		<script>
+			var buttons = document.querySelectorAll('#Button .button a');
+			var hoverSound = document.getElementById('hoverSound');
+			var clickSound = document.getElementById('clickSound');
+		
+			buttons.forEach(function(button) {
+				button.addEventListener('mouseover', function() {
+					hoverSound.play();
+				});
+			});
+		
+			function fadeOutAndRedirect(url) {
+				clickSound.play(); 
+				var elements = document.body.children;
+				for (var i = 0; i < elements.length; i++) {
+					elements[i].style.transition = 'opacity 1s';
+					elements[i].style.opacity = '0';
+				}
+
+				setTimeout(function() {
+					window.location.href = url;
+				}, 1000); 
+			}
+		
+			buttons.forEach(function(button) {
+				button.addEventListener('click', function(event) {
+					event.preventDefault();
+					fadeOutAndRedirect(this.getAttribute('href'));
+				});
+			});
+
+			window.onload = async () => {
+				if(!sessionStorage.getItem('loginUser'))
+					window.location.href="./login.html";
+			}
+		</script>
+	
+</body>
+</html>
